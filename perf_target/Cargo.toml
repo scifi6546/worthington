@@ -1,0 +1,12 @@
+[package]
+name = "perf_target"
+version = "0.1.0"
+authors = ["Nick Alexeev <nickalexeev@protonmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+table = {path="../table"}
+[profile.release]
+debug=true
