@@ -2,4 +2,5 @@
 members = [
     "perf_target",
     "table",
+    "variable_storage",
 ]
