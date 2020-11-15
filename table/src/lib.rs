@@ -2,7 +2,6 @@ use std::sync::RwLock;
 pub trait Insertable {
     const SIZE: u32;
     fn to_binary(&self) -> Vec<u8>;
-    fn from_binary(buffer: Vec<u8>) -> Self;
 }
 pub struct DatabaseTable {
     data: Vec<RwLock<Block>>,
@@ -20,12 +19,16 @@ impl DatabaseTable {
     pub fn new() -> Self {
         Self { data: vec![] }
     }
-    pub fn get<Data: Insertable>(&self, key: Key) -> Result<Data, TableError> {
+    pub fn get<Data: Insertable>(
+        &self,
+        key: Key,
+        ctor: fn(Vec<u8>) -> Data,
+    ) -> Result<Data, TableError> {
         if key.index > self.data.len() * Self::BLOCK_SIZE as usize {
             return Err(TableError::InvalidKey);
         }
         if let Some(block) = self.data[key.index / Self::BLOCK_SIZE as usize].read().ok() {
-            Ok(block.get_data(key.index as u32 % Self::BLOCK_SIZE))
+            Ok(block.get_data(key.index as u32 % Self::BLOCK_SIZE, ctor))
         } else {
             return Err(TableError::InvalidLock);
         }
@@ -69,10 +72,10 @@ impl Block {
             bitmap: Bitmap::new(block_size),
         }
     }
-    fn get_data<Data: Insertable>(&self, index: u32) -> Data {
+    fn get_data<Data: Insertable>(&self, index: u32, ctor: fn(Vec<u8>) -> Data) -> Data {
         let buffer: Vec<u8> =
             self.data[(index * Data::SIZE) as usize..((index + 1) * Data::SIZE) as usize].to_vec();
-        Data::from_binary(buffer)
+        ctor(buffer)
     }
     fn write_index<Data: Insertable>(&mut self, index: u32, data: Data) {
         let buffer = data.to_binary();
@@ -142,9 +145,9 @@ impl Insertable for u32 {
         let bytes = self.to_le_bytes();
         vec![bytes[0], bytes[1], bytes[2], bytes[3]]
     }
-    fn from_binary(data: Vec<u8>) -> Self {
-        u32::from_le_bytes([data[0], data[1], data[2], data[3]])
-    }
+}
+fn from_binary(data: Vec<u8>) -> u32 {
+    u32::from_le_bytes([data[0], data[1], data[2], data[3]])
 }
 #[cfg(test)]
 mod tests {
@@ -175,8 +178,8 @@ mod tests {
         let mut db: DatabaseTable = DatabaseTable::new();
         let k1 = db.insert::<u32>(1);
         let k2 = db.insert::<u32>(2);
-        assert_eq!(db.get::<u32>(k1).ok().unwrap(), 1);
-        assert_eq!(db.get::<u32>(k2).ok().unwrap(), 2);
+        assert_eq!(db.get::<u32>(k1, from_binary).ok().unwrap(), 1);
+        assert_eq!(db.get::<u32>(k2, from_binary).ok().unwrap(), 2);
     }
     #[test]
     fn mass_insert() {
@@ -186,7 +189,10 @@ mod tests {
             keys.push((db.insert::<u32>(i), i));
         }
         for (key, value) in keys.iter() {
-            assert_eq!(db.get::<u32>(key.clone()).ok().unwrap(), value.clone());
+            assert_eq!(
+                db.get::<u32>(key.clone(), from_binary).ok().unwrap(),
+                value.clone()
+            );
         }
     }
 }
