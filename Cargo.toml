@@ -3,4 +3,7 @@ members = [
     "perf_target",
     "table",
     "variable_storage",
+    "graph",
+    "macro_lib",
+    "macro_use",
 ]
