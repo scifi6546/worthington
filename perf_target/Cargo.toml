@@ -8,5 +8,3 @@ edition = "2018"
 
 [dependencies]
 table = {path="../table"}
-[profile.release]
-debug=true

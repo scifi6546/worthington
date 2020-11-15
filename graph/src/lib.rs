@@ -1,30 +1,20 @@
-mod Items {
-    pub struct Foo {}
-    pub struct Bar {}
-}
-pub enum ItemEntry {
-    Foo(Items::Foo),
-    Bar(Items::Bar),
-}
+use std::collections::HashMap;
+use table::DatabaseTable;
+use variable_storage::{InMemoryExtent, VariableExtent};
 #[derive(Clone)]
 pub struct Key {}
-
-#[macro_export]
-macro_rules! database {
-    ($($type:ty,$ident:ident),*) => {
-        enum Item {
-            $(
-            $ident($type),
-            )*
-        }
-
-    };
+struct NodeElementHash {
+    hash: usize,
 }
 pub trait Node {
     //hash of the database name
     const Hash: usize;
 }
-pub struct Database {}
+pub struct Database {
+    //For elements with a variable size
+    variable: HashMap<NodeElementHash, VariableExtent<InMemoryExtent>>,
+    //For elements with a fixed size
+}
 impl Database {
     pub fn new() -> Self {
         unimplemented!()
@@ -43,43 +33,6 @@ impl Database {
     }
 }
 
-/// ```
-/// #[macro_use] extern crate graph;
-/// struct Person{name:String}
-/// struct Pet{species:String}
-/// database!(Person,Person,Pet,Pet);
-/// let mut db = db::new();
-/// let k = db.insert(Item::Person(Person{name:"Bill".to_string()}));
-/// let pk = db.insert(Item::Pet(Pet{species:"dog".to_string()}));
-/// ```
-/// Or?
-/// ```
-/// #[macro_use] extern crate graph;
-/// database_schema!(Person{name:String},Pet{species:String});
-/// let db = Database::new();
-/// let person_key:Box<Person::key> = db.Person.insert(Person::new{name:"Bill".to_string()})
-/// let jill_key:Box<Person::key> = db.Person.insert(Person::new{name:"Jill".to_string()})
-/// let pet_key:Box<Pet::Key> = db.Pet.insert(Pet::new{species:"dog".to_string()});
-/// db.link(person_key,pet_key);
-/// for pet in db.Person.Pet{
-///     assert_eq!(pet.species,"dog".to_string());
-///
-/// }
-///
-///
-/// ```
-mod foo {
-    fn t() {
-        let _t = {
-            mod bar {
-                pub fn foos() {
-                    println!("bar?")
-                }
-            }
-            bar::foos()
-        };
-    }
-}
 #[cfg(test)]
 mod tests {
     use super::*;

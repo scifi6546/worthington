@@ -4,9 +4,8 @@ pub trait Insertable {
     fn to_binary(&self) -> Vec<u8>;
     fn from_binary(buffer: Vec<u8>) -> Self;
 }
-pub struct DatabaseTable<Data: Insertable> {
+pub struct DatabaseTable {
     data: Vec<RwLock<Block>>,
-    _temp: Option<Data>,
 }
 #[derive(Debug, Clone)]
 pub struct Key {
@@ -16,15 +15,12 @@ pub enum TableError {
     InvalidKey,
     InvalidLock,
 }
-impl<Data: Insertable> DatabaseTable<Data> {
+impl DatabaseTable {
     const BLOCK_SIZE: u32 = 0x1000;
     pub fn new() -> Self {
-        Self {
-            data: vec![],
-            _temp: None,
-        }
+        Self { data: vec![] }
     }
-    pub fn get(&self, key: Key) -> Result<Data, TableError> {
+    pub fn get<Data: Insertable>(&self, key: Key) -> Result<Data, TableError> {
         if key.index > self.data.len() * Self::BLOCK_SIZE as usize {
             return Err(TableError::InvalidKey);
         }
@@ -34,7 +30,7 @@ impl<Data: Insertable> DatabaseTable<Data> {
             return Err(TableError::InvalidLock);
         }
     }
-    pub fn insert(&mut self, data: Data) -> Key {
+    pub fn insert<Data: Insertable>(&mut self, data: Data) -> Key {
         let mut block_num = 0;
         for block_lock in self.data.iter() {
             let mut min_index = None;
@@ -104,6 +100,7 @@ impl Bitmap {
             data: vec![0; alloc_size as usize],
         }
     }
+    #[allow(dead_code)]
     pub fn get(&self, index: u32) -> bool {
         let byte = self.data[index as usize / Self::INT_SIZE as usize];
         let bit = (byte >> (index % Self::INT_SIZE)) & 0x1;
@@ -171,34 +168,25 @@ mod tests {
 
     #[test]
     fn make_db() {
-        let db: DatabaseTable<u32> = DatabaseTable::new();
+        let _ = DatabaseTable::new();
     }
     #[test]
     fn insert_and_get() {
-        let mut db: DatabaseTable<u32> = DatabaseTable::new();
-        let k1 = db.insert(1);
-        let k2 = db.insert(2);
-        assert_eq!(db.get(k1).ok().unwrap(), 1);
-        assert_eq!(db.get(k2).ok().unwrap(), 2);
-    }
-    fn do_lots_of_inserts(db: &mut DatabaseTable<u32>) {
-        let mut keys = vec![];
-        for i in 0..100 {
-            keys.push((db.insert(i), i));
-        }
-        for (key, value) in keys.iter() {
-            assert_eq!(db.get(key.clone()).ok().unwrap(), value.clone());
-        }
+        let mut db: DatabaseTable = DatabaseTable::new();
+        let k1 = db.insert::<u32>(1);
+        let k2 = db.insert::<u32>(2);
+        assert_eq!(db.get::<u32>(k1).ok().unwrap(), 1);
+        assert_eq!(db.get::<u32>(k2).ok().unwrap(), 2);
     }
     #[test]
     fn mass_insert() {
-        let mut db: DatabaseTable<u32> = DatabaseTable::new();
+        let mut db: DatabaseTable = DatabaseTable::new();
         let mut keys = vec![];
         for i in 0..100 {
-            keys.push((db.insert(i), i));
+            keys.push((db.insert::<u32>(i), i));
         }
         for (key, value) in keys.iter() {
-            assert_eq!(db.get(key.clone()).ok().unwrap(), value.clone());
+            assert_eq!(db.get::<u32>(key.clone()).ok().unwrap(), value.clone());
         }
     }
 }

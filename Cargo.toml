@@ -7,3 +7,5 @@ members = [
     "macro_lib",
     "macro_use",
 ]
+[profile.release]
+debug=true
