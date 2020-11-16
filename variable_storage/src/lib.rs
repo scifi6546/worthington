@@ -56,6 +56,14 @@ impl<ExtentT: Extent> VariableExtent<ExtentT> {
             index: key_buffer.len() / std::mem::size_of::<u64>(),
         };
     }
+    pub fn contains_key(&self, key: Key) -> bool {
+        let listing = self.load_block(0);
+        if key.index * 8 >= listing.len() {
+            false
+        } else {
+            true
+        }
+    }
     /// Finds a free fat entery. Does not initilize entry
     fn find_free_entery(&mut self) -> usize {
         for i in 1..self.get_number_blocks() {
@@ -319,5 +327,13 @@ mod tests {
         for (key, data) in v.iter() {
             assert_eq!(e.get_entry(key.clone()), vec![data.clone()]);
         }
+    }
+    #[test]
+    fn contains_key() {
+        let mut e = VariableExtent::new(InMemoryExtent::new());
+        let fake = Key { index: 100 };
+        assert_eq!(e.contains_key(fake), false);
+        let real = e.add_entry(vec![]);
+        assert_eq!(e.contains_key(real), true);
     }
 }

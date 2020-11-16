@@ -94,6 +94,9 @@ pub trait Node {
         Vec<(NodeElementHash, Box<dyn VariableSizeInsert>)>,
     );
 }
+enum DatabseError {
+    InvalidKey(Key),
+}
 pub struct Database {
     //Listing of all node elements keys
     node_storage: VariableExtent<InMemoryExtent>,
