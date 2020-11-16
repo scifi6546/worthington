@@ -1,6 +1,9 @@
+use dyn_clonable::*;
 use std::sync::RwLock;
-pub trait Insertable {
-    const SIZE: u32;
+#[clonable]
+pub unsafe trait Insertable: Clone {
+    /// It is expected that size is constant
+    fn size(&self) -> u32;
     fn to_binary(&self) -> Vec<u8>;
 }
 pub struct DatabaseTable {
@@ -51,8 +54,10 @@ impl DatabaseTable {
             block_num += 1;
         }
         //all blocks are used make a new one
-        self.data
-            .push(RwLock::new(Block::new::<Data>(Self::BLOCK_SIZE)));
+        self.data.push(RwLock::new(Block::new::<Data>(
+            Self::BLOCK_SIZE,
+            data.size(),
+        )));
         if let Some(mut block) = self.data[self.data.len() - 1].write().ok() {
             block.write_index(0, data);
         }
@@ -64,23 +69,26 @@ impl DatabaseTable {
 struct Block {
     data: Vec<u8>,
     bitmap: Bitmap,
+    data_size: u32,
 }
 impl Block {
-    fn new<Data: Insertable>(block_size: u32) -> Self {
+    fn new<Data: Insertable>(block_size: u32, data_size: u32) -> Self {
         Block {
-            data: vec![0; (block_size as usize) * Data::SIZE as usize],
+            data: vec![0; (block_size as usize) * data_size as usize],
             bitmap: Bitmap::new(block_size),
+            data_size,
         }
     }
     fn get_data<Data: Insertable>(&self, index: u32, ctor: fn(Vec<u8>) -> Data) -> Data {
-        let buffer: Vec<u8> =
-            self.data[(index * Data::SIZE) as usize..((index + 1) * Data::SIZE) as usize].to_vec();
+        let buffer: Vec<u8> = self.data
+            [(index * self.data_size) as usize..((index + 1) * self.data_size) as usize]
+            .to_vec();
         ctor(buffer)
     }
     fn write_index<Data: Insertable>(&mut self, index: u32, data: Data) {
         let buffer = data.to_binary();
-        for i in (index * Data::SIZE)..((index + 1) * Data::SIZE) {
-            self.data[i as usize] = buffer[(i - index * Data::SIZE) as usize];
+        for i in (index * self.data_size)..((index + 1) * self.data_size) {
+            self.data[i as usize] = buffer[(i - index * self.data_size) as usize];
         }
         self.bitmap.set(index, true);
     }
@@ -139,14 +147,48 @@ impl Bitmap {
         }
     }
 }
-impl Insertable for u32 {
-    const SIZE: u32 = 4;
+unsafe impl Insertable for u32 {
+    fn size(&self) -> u32 {
+        4
+    }
     fn to_binary(&self) -> Vec<u8> {
         let bytes = self.to_le_bytes();
         vec![bytes[0], bytes[1], bytes[2], bytes[3]]
     }
 }
-fn from_binary(data: Vec<u8>) -> u32 {
+unsafe impl<T: Insertable + Clone> Insertable for Vec<T> {
+    fn size(&self) -> u32 {
+        todo!()
+    }
+    fn to_binary(&self) -> Vec<u8> {
+        todo!()
+    }
+}
+unsafe impl Insertable for Box<dyn Insertable> {
+    fn size(&self) -> u32 {
+        todo!()
+    }
+    fn to_binary(&self) -> Vec<u8> {
+        todo!()
+    }
+}
+unsafe impl Insertable for &Box<dyn Insertable> {
+    fn size(&self) -> u32 {
+        todo!()
+    }
+    fn to_binary(&self) -> Vec<u8> {
+        todo!()
+    }
+}
+unsafe impl Insertable for Key {
+    fn size(&self) -> u32 {
+        8
+    }
+    fn to_binary(&self) -> Vec<u8> {
+        self.index.to_le_bytes().to_vec()
+    }
+}
+pub fn from_binary(data: Vec<u8>) -> u32 {
     u32::from_le_bytes([data[0], data[1], data[2], data[3]])
 }
 #[cfg(test)]

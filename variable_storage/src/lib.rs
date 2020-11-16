@@ -1,5 +1,14 @@
 use std::cmp::max;
 use std::ops::{Index, IndexMut};
+use table::Insertable;
+unsafe impl Insertable for Key {
+    fn size(&self) -> u32 {
+        8
+    }
+    fn to_binary(&self) -> Vec<u8> {
+        self.index.to_le_bytes().to_vec()
+    }
+}
 pub trait Extent: Index<usize, Output = u8> + IndexMut<usize, Output = u8> {
     /// Resizes extent. If extent is grown no garuentees are made about the contents of the new
     /// data
