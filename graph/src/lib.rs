@@ -94,7 +94,7 @@ pub trait Node {
         Vec<(NodeElementHash, Box<dyn VariableSizeInsert>)>,
     );
 }
-enum DatabseError {
+pub enum DatabseError {
     InvalidKey(Key),
 }
 pub struct Database {
@@ -178,8 +178,20 @@ impl Database {
             key: self.node_storage.add_entry(node_keys.get_data()),
         }
     }
-    pub fn connect(&mut self, key1: Key, key2: Key) {
-        unimplemented!()
+    pub fn connect(&mut self, key1: Key, key2: Key) -> Result<(), DatabseError> {
+        if !self.node_storage.contains_key(key1.clone().key) {
+            return Err(DatabseError::InvalidKey(key1));
+        }
+        if !self.node_storage.contains_key(key2.clone().key) {
+            return Err(DatabseError::InvalidKey(key2));
+        }
+        let mut k1_data = self.node_storage.get_entry(key1.clone().key);
+        k1_data.append(&mut key2.key.to_binary());
+        self.node_storage.write_entry(key1.clone().key, 0, k1_data);
+        let mut k2_data = self.node_storage.get_entry(key2.clone().key);
+        k2_data.append(&mut key1.key.to_binary());
+        self.node_storage.write_entry(key2.key, 0, k2_data);
+        Ok(())
     }
     pub fn get_connected(&self, key: Key) -> Vec<Key> {
         unimplemented!()

@@ -1,4 +1,4 @@
-use std::cmp::max;
+use std::cmp::{max, min};
 use std::ops::{Index, IndexMut};
 use table::Insertable;
 unsafe impl Insertable for Key {
@@ -92,7 +92,7 @@ impl<ExtentT: Extent> VariableExtent<ExtentT> {
         loop {
             let size = self.get_block_size(block_number);
             // Hit index
-            if traversed_size + size <= index {
+            if !((index + buffer.len() < traversed_size) || index > traversed_size) {
                 //if buffer is completly contaned inside of block
                 if buffer.len() + index - traversed_size <= Self::BLOCK_USABLE_SIZE {
                     for i in 0..buffer.len() {
@@ -107,10 +107,15 @@ impl<ExtentT: Extent> VariableExtent<ExtentT> {
                     return;
                 //else write to end of buffer
                 } else {
-                    let start_index =
-                        block_number * Self::FAT_BLOCK_SIZE + Self::HEADER_SIZE + index
-                            - traversed_size;
-                    let copy_size = Self::BLOCK_USABLE_SIZE - (index - traversed_size);
+                    let start_index = block_number * Self::FAT_BLOCK_SIZE
+                        + Self::HEADER_SIZE
+                        + if traversed_size > index {
+                            0
+                        } else {
+                            index - traversed_size
+                        };
+                    let copy_size = min(Self::BLOCK_USABLE_SIZE, buffer.len());
+                    //let copy_size = Self::BLOCK_USABLE_SIZE - (index - traversed_size);
                     for i in 0..copy_size {
                         self.data_store[i + start_index] = buffer[i];
                     }
@@ -119,8 +124,10 @@ impl<ExtentT: Extent> VariableExtent<ExtentT> {
                     let new_block = self.find_free_entery();
                     self.initilize_block(new_block);
                     self.set_next_block(block_number, new_block);
-                    traversed_size += Self::BLOCK_USABLE_SIZE;
+                    traversed_size += copy_size;
                     block_number = new_block;
+                    let new_size = min(Self::BLOCK_USABLE_SIZE, buffer.len());
+                    self.set_block_size(block_number, new_size);
                 }
             } else {
                 let next_block = self.get_next_block(block_number);
@@ -282,11 +289,17 @@ impl InMemoryExtent {
 impl Index<usize> for InMemoryExtent {
     type Output = u8;
     fn index(&self, idx: usize) -> &Self::Output {
+        if idx >= self.data.len() {
+            panic!("index out of bounds")
+        }
         &self.data[idx]
     }
 }
 impl IndexMut<usize> for InMemoryExtent {
     fn index_mut(&mut self, idx: usize) -> &mut Self::Output {
+        if idx >= self.data.len() {
+            panic!("index mut out of bounds")
+        }
         &mut self.data[idx]
     }
 }
@@ -317,6 +330,14 @@ mod tests {
         let key = e.add_entry(vec![]);
         e.write_entry(key.clone(), 0, vec![1]);
         assert_eq!(e.get_entry(key), vec![1]);
+    }
+    #[test]
+    fn write_empty() {
+        let mut e = VariableExtent::new(InMemoryExtent::new());
+        let key = e.add_entry(vec![]);
+        let v: Vec<u8> = (1..10000).map(|_| 0).collect();
+        e.write_entry(key.clone(), 0, v.clone());
+        assert_eq!(e.get_entry(key), v);
     }
     #[test]
     fn write_several() {
