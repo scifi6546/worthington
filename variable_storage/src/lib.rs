@@ -137,13 +137,13 @@ impl<ExtentT: Extent> VariableExtent<ExtentT> {
                     data[i + data_start];
             }
             self.set_block_size(block, copy_size + start_index);
-            if start_index + copy_size < data.len() {
+            if data_start + copy_size < data.len() {
                 let mut new_block = self.get_next_block(block);
                 if new_block == 0 {
                     new_block = self.find_free_entery();
                     self.initilize_block(new_block);
+                    self.set_next_block(block, new_block);
                 }
-                self.set_next_block(block, new_block);
                 data_start += copy_size;
                 block = new_block;
                 start_index = 0;
@@ -362,9 +362,19 @@ mod tests {
     fn write_empty() {
         let mut e = VariableExtent::new(InMemoryExtent::new());
         let key = e.add_entry(vec![]);
-        let v: Vec<u8> = (1..100).map(|_| 0).collect();
+        let v: Vec<u8> = (1..10000).map(|_| 0).collect();
         e.write_entry(key.clone(), 0, v.clone());
         assert_eq!(e.get_entry(key), v);
+    }
+    #[test]
+    fn write_toture_test() {
+        let mut e = VariableExtent::new(InMemoryExtent::new());
+        for i in 0..5 {
+            let key = e.add_entry(vec![]);
+            let v: Vec<u8> = (1..10000).map(|_| 0).collect();
+            e.write_entry(key.clone(), 0, v.clone());
+            assert_eq!(e.get_entry(key), v);
+        }
     }
     #[test]
     fn write_several() {
