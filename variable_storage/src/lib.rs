@@ -1,4 +1,4 @@
-use std::cmp::{max, min};
+use std::cmp::min;
 use std::ops::{Index, IndexMut};
 use table::Insertable;
 unsafe impl Insertable for Key {
@@ -24,7 +24,7 @@ pub struct VariableExtent<ExtentT: Extent> {
     data_store: ExtentT,
 }
 impl<ExtentT: Extent> VariableExtent<ExtentT> {
-    const FAT_BLOCK_SIZE: usize = 0x100;
+    const FAT_BLOCK_SIZE: usize = 100;
     const HEADER_SIZE: usize = 0x4 + 0x4 + 0x8;
     const BLOCK_USABLE_SIZE: usize = Self::FAT_BLOCK_SIZE - Self::HEADER_SIZE;
     /// Creates a new Extent
@@ -48,7 +48,7 @@ impl<ExtentT: Extent> VariableExtent<ExtentT> {
     /// Adds a new Entery with the specified data
     pub fn add_entry(&mut self, buffer: Vec<u8>) -> Key {
         let key_buffer = self.load_block(0);
-        let free_key = self.find_free_entery();
+        let free_key: usize = self.find_free_entery();
         self.initilize_block(free_key);
         self.append_block(free_key, buffer);
         self.append_block(0, free_key.to_le_bytes().to_vec());
@@ -86,57 +86,69 @@ impl<ExtentT: Extent> VariableExtent<ExtentT> {
     }
     /// Writes new data to a entery specified at a index. Resizes if needed
     /// Index must be inside of buffer. todo: add better error handeling
-    pub fn write_entry(&mut self, key: Key, index: usize, mut buffer: Vec<u8>) {
-        let mut block_number = self.find_key(key);
-        let mut traversed_size = 0;
+    pub fn write_entry(&mut self, key: Key, index: usize, buffer: Vec<u8>) {
+        let (block_num, index) = self.find_start(self.find_key(key), index);
+        self.write(buffer, 0, block_num, index);
+    }
+    /// Finds the block in a start block. Returns (block_number,index relative to start of
+    /// current_block)
+    fn find_start(&mut self, mut block_num: usize, mut index: usize) -> (usize, usize) {
         loop {
-            let size = self.get_block_size(block_number);
-            // Hit index
-            if !((index + buffer.len() < traversed_size) || index > traversed_size) {
-                //if buffer is completly contaned inside of block
-                if buffer.len() + index - traversed_size <= Self::BLOCK_USABLE_SIZE {
-                    for i in 0..buffer.len() {
-                        self.data_store[block_number * Self::FAT_BLOCK_SIZE
-                            + Self::HEADER_SIZE
-                            + index
-                            - traversed_size
-                            + i] = buffer[i];
-                    }
-                    let new_size = max(size, index - traversed_size + buffer.len());
-                    self.set_block_size(block_number, new_size);
-                    return;
-                //else write to end of buffer
-                } else {
-                    let start_index = block_number * Self::FAT_BLOCK_SIZE
-                        + Self::HEADER_SIZE
-                        + if traversed_size > index {
-                            0
-                        } else {
-                            index - traversed_size
-                        };
-                    let copy_size = min(Self::BLOCK_USABLE_SIZE, buffer.len());
-                    //let copy_size = Self::BLOCK_USABLE_SIZE - (index - traversed_size);
-                    for i in 0..copy_size {
-                        self.data_store[i + start_index] = buffer[i];
-                    }
-                    buffer = buffer.split_off(copy_size);
-                    self.set_block_size(block_number, Self::BLOCK_USABLE_SIZE);
-                    let new_block = self.find_free_entery();
-                    self.initilize_block(new_block);
-                    self.set_next_block(block_number, new_block);
-                    traversed_size += copy_size;
-                    block_number = new_block;
-                    let new_size = min(Self::BLOCK_USABLE_SIZE, buffer.len());
-                    self.set_block_size(block_number, new_size);
-                }
-            } else {
-                let next_block = self.get_next_block(block_number);
+            if Self::BLOCK_USABLE_SIZE < index {
+                let next_block = self.get_next_block(block_num);
                 if next_block == 0 {
-                    todo!("handle error if index is outside of last block");
-                } else {
-                    traversed_size += self.get_block_size(block_number);
-                    block_number = next_block;
+                    panic!("index is past block_size");
                 }
+                block_num = next_block;
+                index -= Self::BLOCK_USABLE_SIZE;
+            } else {
+                return (block_num, index);
+            }
+        }
+    }
+    fn write(
+        &mut self,
+        data: Vec<u8>,
+        mut data_start: usize,
+        mut block: usize,
+        mut start_index: usize,
+    ) {
+        loop {
+            let is_used = {
+                let buff: Vec<u8> = (block * Self::FAT_BLOCK_SIZE
+                    ..block * Self::FAT_BLOCK_SIZE + 4)
+                    .map(|i| self.data_store[i])
+                    .collect();
+                u32::from_le_bytes([buff[0], buff[1], buff[2], buff[3]])
+            };
+            if is_used != 1 {
+                panic!()
+            }
+
+            let copy_size = min(
+                Self::BLOCK_USABLE_SIZE - start_index,
+                data.len() - data_start,
+            );
+            assert!(block != 0);
+
+            //copying data
+            for i in 0..copy_size {
+                self.data_store[block * Self::FAT_BLOCK_SIZE + Self::HEADER_SIZE + start_index] =
+                    data[i + data_start];
+            }
+            self.set_block_size(block, copy_size + start_index);
+            if start_index + copy_size < data.len() {
+                let mut new_block = self.get_next_block(block);
+                if new_block == 0 {
+                    new_block = self.find_free_entery();
+                    self.initilize_block(new_block);
+                }
+                self.set_next_block(block, new_block);
+                data_start += copy_size;
+                block = new_block;
+                start_index = 0;
+            } else {
+                return;
             }
         }
     }
@@ -210,6 +222,7 @@ impl<ExtentT: Extent> VariableExtent<ExtentT> {
     /// Sets the next block header in block
     fn set_next_block(&mut self, block: usize, next_block: usize) {
         assert!(block * Self::FAT_BLOCK_SIZE <= self.data_store.len());
+        assert!(next_block * Self::FAT_BLOCK_SIZE <= self.data_store.len());
         let next_buff = next_block.to_le_bytes();
         for i in 0..8 {
             self.data_store[block * Self::FAT_BLOCK_SIZE + 8 + i] = next_buff[i];
@@ -232,6 +245,9 @@ impl<ExtentT: Extent> VariableExtent<ExtentT> {
         }
     }
     fn load_block(&self, block_num: usize) -> Vec<u8> {
+        if block_num * Self::FAT_BLOCK_SIZE >= self.data_store.len() {
+            panic!("block is out of bounds");
+        }
         let mut block_start = block_num * Self::FAT_BLOCK_SIZE;
         let mut buff = vec![];
         loop {
@@ -275,7 +291,27 @@ impl<ExtentT: Extent> VariableExtent<ExtentT> {
         for i in 0..8 {
             block_number[i] = listing[key.index * 8 + i]
         }
-        u64::from_le_bytes(block_number) as usize
+        let number = u64::from_le_bytes(block_number) as usize;
+        if number * Self::FAT_BLOCK_SIZE >= self.data_store.len() {
+            panic!("fat key out of bounds");
+        }
+        return number;
+    }
+    pub fn is_consistant(&self) -> bool {
+        let block = self.load_block(0);
+        if block.len() % 8 != 0 {
+            panic!("fat size wrong");
+        }
+        for i in 0..block.len() / 8 {
+            let mut buff = [0; 8];
+            for j in 0..8 {
+                buff[j] = block[i * 8 + j];
+            }
+            if usize::from_le_bytes(buff) * Self::FAT_BLOCK_SIZE >= self.data_store.len() {
+                return false;
+            }
+        }
+        true
     }
 }
 pub struct InMemoryExtent {
@@ -333,6 +369,7 @@ mod tests {
     }
     #[test]
     fn write_empty() {
+        todo!("fix test");
         let mut e = VariableExtent::new(InMemoryExtent::new());
         let key = e.add_entry(vec![]);
         let v: Vec<u8> = (1..10000).map(|_| 0).collect();
@@ -342,10 +379,15 @@ mod tests {
     #[test]
     fn write_several() {
         let mut e = VariableExtent::new(InMemoryExtent::new());
+        assert!(e.is_consistant());
         let v: Vec<(Key, u8)> = (0..100)
-            .map(|i| (e.add_entry(vec![i.clone()]), i.clone()))
+            .map(|i| {
+                assert!(e.is_consistant());
+                (e.add_entry(vec![i.clone()]), i.clone())
+            })
             .collect();
         for (key, data) in v.iter() {
+            assert!(e.is_consistant());
             assert_eq!(e.get_entry(key.clone()), vec![data.clone()]);
         }
     }
