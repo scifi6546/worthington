@@ -1,12 +1,20 @@
 use std::cmp::min;
 use std::ops::{Index, IndexMut};
-use table::InsertableDyn;
+use table::{Insertable, InsertableDyn};
 unsafe impl InsertableDyn for Key {
     fn size(&self) -> u32 {
         8
     }
     fn to_binary(&self) -> Vec<u8> {
         self.index.to_le_bytes().to_vec()
+    }
+}
+unsafe impl Insertable for Key {
+    const SIZE: usize = 8;
+    fn from_binary(b: Vec<u8>) -> Self {
+        Self {
+            index: usize::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]),
+        }
     }
 }
 pub trait Extent: Index<usize, Output = u8> + IndexMut<usize, Output = u8> {

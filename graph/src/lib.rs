@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use table::{DatabaseTable, InsertableDyn, Key as TableKey};
+use table::{DatabaseTable, Insertable, InsertableDyn, Key as TableKey};
 use variable_storage::{InMemoryExtent, Key as VariableKey, VariableExtent};
 pub trait VariableSizeInsert {
     fn get_data(&self) -> Vec<u8>;
@@ -21,10 +21,20 @@ pub struct NodeElementHash {
 pub struct NodeHash {
     hash: usize,
 }
+unsafe impl Insertable for NodeHash {
+    const SIZE: usize = 8;
+    fn from_binary(d: Vec<u8>) -> Self {
+        Self {
+            hash: usize::from_le_bytes([d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]]),
+        }
+    }
+}
 #[derive(Clone)]
 struct NodeKeyStorage {
     //link to self members in node_contents keys
     self_members: TableKey,
+    //hash of self
+    self_hash: NodeHash,
     //Links
     linked_nodes: Vec<VariableKey>,
 }
@@ -39,7 +49,36 @@ impl VariableSizeInsert for NodeKeyStorage {
 }
 impl NodeKeyStorage {
     fn from_binary(data: Vec<u8>) -> Self {
-        todo!()
+        let num_keys = (data.len() - TableKey::SIZE - NodeHash::SIZE) / VariableKey::SIZE;
+        let self_members = TableKey::from_binary(data.clone());
+        let self_hash = NodeHash::from_binary(
+            data.clone()[TableKey::SIZE..TableKey::SIZE + NodeHash::SIZE].to_vec(),
+        );
+        let linked_nodes = (0..num_keys)
+            .map(|i| {
+                VariableKey::from_binary(
+                    data.clone()[i * VariableKey::SIZE + TableKey::SIZE + NodeHash::SIZE
+                        ..i * VariableKey::SIZE
+                            + TableKey::SIZE
+                            + VariableKey::SIZE
+                            + NodeHash::SIZE]
+                        .to_vec(),
+                )
+            })
+            .collect();
+        Self {
+            self_members,
+            self_hash,
+            linked_nodes,
+        }
+    }
+}
+unsafe impl Insertable for NodeElementHash {
+    const SIZE: usize = 8;
+    fn from_binary(d: Vec<u8>) -> Self {
+        Self {
+            hash: usize::from_le_bytes([d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]]),
+        }
     }
 }
 unsafe impl InsertableDyn for NodeElementHash {
@@ -86,8 +125,11 @@ unsafe impl InsertableDyn for NodeStorage {
         buffer
     }
 }
-/// Schema of a Node
-struct NodeSchema {}
+impl NodeStorage {
+    fn from_binary(_d: Vec<u8>) -> Self {
+        todo!()
+    }
+}
 pub trait Node {
     //hash of the database name
     const HASH: NodeHash;
@@ -97,6 +139,10 @@ pub trait Node {
         Vec<(NodeElementHash, Box<dyn InsertableDyn>)>,
         Vec<(NodeElementHash, Box<dyn VariableSizeInsert>)>,
     );
+    fn from_data(
+        sized: Vec<(NodeElementHash, Vec<u8>)>,
+        variable: Vec<(NodeElementHash, Vec<u8>)>,
+    ) -> Self;
 }
 pub enum DatabseError {
     InvalidKey(Key),
@@ -175,6 +221,7 @@ impl Database {
             .insert(node);
         let node_keys = NodeKeyStorage {
             self_members: key,
+            self_hash: Data::HASH,
             //Links
             linked_nodes: vec![],
         };
@@ -206,7 +253,28 @@ impl Database {
             .collect();
     }
     pub fn get<Data: Node>(&self, key: Key) -> Option<Data> {
-        unimplemented!()
+        let data = NodeKeyStorage::from_binary(self.node_storage.get_entry(key.key));
+        let data_locations = self.node_contents[&data.self_hash]
+            .get(data.self_members, NodeStorage::from_binary)
+            .ok()
+            .unwrap();
+
+        let variable = data_locations
+            .node_dynamic_sized_keys
+            .iter()
+            .map(|(hash, key)| (hash.clone(), self.variable[hash].get_entry(key.clone())))
+            .collect();
+        let sized = data_locations
+            .node_static_sized_keys
+            .iter()
+            .map(|(hash, key)| {
+                (
+                    hash.clone(),
+                    self.sized[hash].get(key.clone(), |d| d).ok().unwrap(),
+                )
+            })
+            .collect();
+        Some(Data::from_data(sized, variable))
     }
 }
 
@@ -234,6 +302,12 @@ mod tests {
                 vec![(NodeElementHash { hash: 0 }, Box::new(self.name.clone()))],
             )
         }
+        fn from_data(
+            sized: Vec<(NodeElementHash, Vec<u8>)>,
+            variable: Vec<(NodeElementHash, Vec<u8>)>,
+        ) -> Self {
+            todo!()
+        }
     }
     impl Node for Pet {
         const HASH: NodeHash = NodeHash { hash: 1 };
@@ -247,6 +321,12 @@ mod tests {
                 vec![],
                 vec![(NodeElementHash { hash: 1 }, Box::new(self.species.clone()))],
             )
+        }
+        fn from_data(
+            sized: Vec<(NodeElementHash, Vec<u8>)>,
+            variable: Vec<(NodeElementHash, Vec<u8>)>,
+        ) -> Self {
+            todo!()
         }
     }
     #[test]

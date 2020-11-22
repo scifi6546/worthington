@@ -1,5 +1,9 @@
 use dyn_clonable::*;
 use std::sync::RwLock;
+pub unsafe trait Insertable {
+    const SIZE: usize;
+    fn from_binary(data: Vec<u8>) -> Self;
+}
 #[clonable]
 pub unsafe trait InsertableDyn: Clone {
     /// It is expected that size is constant
@@ -12,6 +16,15 @@ pub struct DatabaseTable {
 #[derive(Debug, Clone)]
 pub struct Key {
     index: usize,
+}
+
+unsafe impl Insertable for Key {
+    const SIZE: usize = 8;
+    fn from_binary(b: Vec<u8>) -> Self {
+        Self {
+            index: usize::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]),
+        }
+    }
 }
 pub enum TableError {
     InvalidKey,
@@ -154,6 +167,14 @@ unsafe impl InsertableDyn for u32 {
     fn to_binary(&self) -> Vec<u8> {
         let bytes = self.to_le_bytes();
         vec![bytes[0], bytes[1], bytes[2], bytes[3]]
+    }
+}
+unsafe impl InsertableDyn for u8 {
+    fn size(&self) -> u32 {
+        1
+    }
+    fn to_binary(&self) -> Vec<u8> {
+        vec![self.clone()]
     }
 }
 unsafe impl<T: InsertableDyn + Clone> InsertableDyn for Vec<T> {
