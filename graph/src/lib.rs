@@ -1,8 +1,7 @@
-use dyn_clonable::*;
 use std::collections::HashMap;
-use table::{DatabaseTable, Insertable, Key as TableKey};
+use table::{DatabaseTable, InsertableDyn, Key as TableKey};
 use variable_storage::{InMemoryExtent, Key as VariableKey, VariableExtent};
-trait VariableSizeInsert {
+pub trait VariableSizeInsert {
     fn get_data(&self) -> Vec<u8>;
 }
 impl VariableSizeInsert for String {
@@ -38,7 +37,12 @@ impl VariableSizeInsert for NodeKeyStorage {
         buffer
     }
 }
-unsafe impl Insertable for NodeElementHash {
+impl NodeKeyStorage {
+    fn from_binary(data: Vec<u8>) -> Self {
+        todo!()
+    }
+}
+unsafe impl InsertableDyn for NodeElementHash {
     fn size(&self) -> u32 {
         8
     }
@@ -51,7 +55,7 @@ struct NodeStorage {
     node_static_sized_keys: Vec<(NodeElementHash, TableKey)>,
     node_dynamic_sized_keys: Vec<(NodeElementHash, VariableKey)>,
 }
-unsafe impl Insertable for NodeStorage {
+unsafe impl InsertableDyn for NodeStorage {
     fn size(&self) -> u32 {
         let static_size = if self.node_static_sized_keys.len() > 0 {
             self.node_static_sized_keys.len() as u32
@@ -90,7 +94,7 @@ pub trait Node {
     fn get_data(
         &self,
     ) -> (
-        Vec<(NodeElementHash, Box<dyn Insertable>)>,
+        Vec<(NodeElementHash, Box<dyn InsertableDyn>)>,
         Vec<(NodeElementHash, Box<dyn VariableSizeInsert>)>,
     );
 }
@@ -124,7 +128,7 @@ impl Database {
                     (
                         hash.clone(),
                         (self.sized.get_mut(hash).unwrap())
-                            .insert::<Box<dyn Insertable>>(data.clone()),
+                            .insert::<Box<dyn InsertableDyn>>(data.clone()),
                     )
                 } else {
                     //add hash
@@ -194,7 +198,12 @@ impl Database {
         Ok(())
     }
     pub fn get_connected(&self, key: Key) -> Vec<Key> {
-        unimplemented!()
+        let data = NodeKeyStorage::from_binary(self.node_storage.get_entry(key.key));
+        return data
+            .linked_nodes
+            .iter()
+            .map(|key| Key { key: key.clone() })
+            .collect();
     }
     pub fn get<Data: Node>(&self, key: Key) -> Option<Data> {
         unimplemented!()
@@ -217,7 +226,7 @@ mod tests {
         fn get_data(
             &self,
         ) -> (
-            Vec<(NodeElementHash, Box<dyn Insertable>)>,
+            Vec<(NodeElementHash, Box<dyn InsertableDyn>)>,
             Vec<(NodeElementHash, Box<dyn VariableSizeInsert>)>,
         ) {
             (
@@ -231,7 +240,7 @@ mod tests {
         fn get_data(
             &self,
         ) -> (
-            Vec<(NodeElementHash, Box<dyn Insertable>)>,
+            Vec<(NodeElementHash, Box<dyn InsertableDyn>)>,
             Vec<(NodeElementHash, Box<dyn VariableSizeInsert>)>,
         ) {
             (

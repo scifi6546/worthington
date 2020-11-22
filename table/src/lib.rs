@@ -1,7 +1,7 @@
 use dyn_clonable::*;
 use std::sync::RwLock;
 #[clonable]
-pub unsafe trait Insertable: Clone {
+pub unsafe trait InsertableDyn: Clone {
     /// It is expected that size is constant
     fn size(&self) -> u32;
     fn to_binary(&self) -> Vec<u8>;
@@ -22,7 +22,7 @@ impl DatabaseTable {
     pub fn new() -> Self {
         Self { data: vec![] }
     }
-    pub fn get<Data: Insertable>(
+    pub fn get<Data: InsertableDyn>(
         &self,
         key: Key,
         ctor: fn(Vec<u8>) -> Data,
@@ -36,7 +36,7 @@ impl DatabaseTable {
             return Err(TableError::InvalidLock);
         }
     }
-    pub fn insert<Data: Insertable>(&mut self, data: Data) -> Key {
+    pub fn insert<Data: InsertableDyn>(&mut self, data: Data) -> Key {
         let mut block_num = 0;
         for block_lock in self.data.iter() {
             let mut min_index = None;
@@ -72,20 +72,20 @@ struct Block {
     data_size: u32,
 }
 impl Block {
-    fn new<Data: Insertable>(block_size: u32, data_size: u32) -> Self {
+    fn new<Data: InsertableDyn>(block_size: u32, data_size: u32) -> Self {
         Block {
             data: vec![0; (block_size as usize) * data_size as usize],
             bitmap: Bitmap::new(block_size),
             data_size,
         }
     }
-    fn get_data<Data: Insertable>(&self, index: u32, ctor: fn(Vec<u8>) -> Data) -> Data {
+    fn get_data<Data: InsertableDyn>(&self, index: u32, ctor: fn(Vec<u8>) -> Data) -> Data {
         let buffer: Vec<u8> = self.data
             [(index * self.data_size) as usize..((index + 1) * self.data_size) as usize]
             .to_vec();
         ctor(buffer)
     }
-    fn write_index<Data: Insertable>(&mut self, index: u32, data: Data) {
+    fn write_index<Data: InsertableDyn>(&mut self, index: u32, data: Data) {
         let buffer = data.to_binary();
         for i in (index * self.data_size)..((index + 1) * self.data_size) {
             self.data[i as usize] = buffer[(i - index * self.data_size) as usize];
@@ -147,7 +147,7 @@ impl Bitmap {
         }
     }
 }
-unsafe impl Insertable for u32 {
+unsafe impl InsertableDyn for u32 {
     fn size(&self) -> u32 {
         4
     }
@@ -156,7 +156,7 @@ unsafe impl Insertable for u32 {
         vec![bytes[0], bytes[1], bytes[2], bytes[3]]
     }
 }
-unsafe impl<T: Insertable + Clone> Insertable for Vec<T> {
+unsafe impl<T: InsertableDyn + Clone> InsertableDyn for Vec<T> {
     fn size(&self) -> u32 {
         todo!()
     }
@@ -164,7 +164,7 @@ unsafe impl<T: Insertable + Clone> Insertable for Vec<T> {
         todo!()
     }
 }
-unsafe impl Insertable for Box<dyn Insertable> {
+unsafe impl InsertableDyn for Box<dyn InsertableDyn> {
     fn size(&self) -> u32 {
         todo!()
     }
@@ -172,7 +172,7 @@ unsafe impl Insertable for Box<dyn Insertable> {
         todo!()
     }
 }
-unsafe impl Insertable for &Box<dyn Insertable> {
+unsafe impl InsertableDyn for &Box<dyn InsertableDyn> {
     fn size(&self) -> u32 {
         todo!()
     }
@@ -180,7 +180,7 @@ unsafe impl Insertable for &Box<dyn Insertable> {
         todo!()
     }
 }
-unsafe impl Insertable for Key {
+unsafe impl InsertableDyn for Key {
     fn size(&self) -> u32 {
         8
     }
