@@ -160,7 +160,7 @@ impl NodeStorage {
             })
             .collect();
 
-        let sized_size = sized_len * (NodeElementHash::SIZE + TableKey::SIZE);
+        let sized_size = sized_len * (NodeElementHash::SIZE + TableKey::SIZE) + usize::SIZE;
         let unsized_len = usize::from_le_bytes([
             d[sized_size + 0],
             d[sized_size + 1],
@@ -378,7 +378,9 @@ mod tests {
             assert_eq!(sized.len(), 0);
             assert_eq!(variable.len(), 1);
             assert_eq!(variable[0].0, NodeElementHash { hash: 0 });
-            todo!()
+            Self {
+                name: String::from_utf8(variable[0].1.clone()).ok().unwrap(),
+            }
         }
     }
     impl Node for Pet {
