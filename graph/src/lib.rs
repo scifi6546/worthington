@@ -13,13 +13,21 @@ impl VariableSizeInsert for String {
 pub struct Key {
     key: VariableKey,
 }
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub struct NodeElementHash {
     hash: usize,
 }
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub struct NodeHash {
     hash: usize,
+}
+unsafe impl InsertableDyn for NodeHash {
+    fn size(&self) -> u32 {
+        8
+    }
+    fn to_binary(&self) -> Vec<u8> {
+        self.hash.to_le_bytes().to_vec()
+    }
 }
 unsafe impl Insertable for NodeHash {
     const SIZE: usize = 8;
@@ -41,6 +49,7 @@ struct NodeKeyStorage {
 impl VariableSizeInsert for NodeKeyStorage {
     fn get_data(&self) -> Vec<u8> {
         let mut buffer = self.self_members.to_binary();
+        buffer.append(&mut self.self_hash.to_binary());
         for key in self.linked_nodes.iter() {
             buffer.append(&mut key.to_binary());
         }
@@ -110,14 +119,16 @@ unsafe impl InsertableDyn for NodeStorage {
         } else {
             0
         };
-        static_size + variable_size
+        static_size + variable_size + 8 + 8
     }
     fn to_binary(&self) -> Vec<u8> {
         let mut buffer = vec![];
+        buffer.append(&mut self.node_static_sized_keys.len().to_le_bytes().to_vec());
         for (hash, key) in self.node_static_sized_keys.iter() {
             buffer.append(&mut hash.clone().to_binary());
             buffer.append(&mut key.clone().to_binary());
         }
+        buffer.append(&mut self.node_dynamic_sized_keys.len().to_le_bytes().to_vec());
         for (hash, key) in self.node_dynamic_sized_keys.iter() {
             buffer.append(&mut hash.clone().to_binary());
             buffer.append(&mut key.clone().to_binary());
@@ -126,8 +137,66 @@ unsafe impl InsertableDyn for NodeStorage {
     }
 }
 impl NodeStorage {
-    fn from_binary(_d: Vec<u8>) -> Self {
-        todo!()
+    fn from_binary(d: Vec<u8>) -> Self {
+        let sized_len = usize::from_le_bytes([d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]]);
+        let node_static_size = NodeElementHash::SIZE + TableKey::SIZE;
+        let node_static_sized_keys = (0..sized_len)
+            .map(|i| {
+                (
+                    NodeElementHash::from_binary(
+                        d[sized_len + node_static_size * i
+                            ..sized_len + node_static_size * i + NodeElementHash::SIZE]
+                            .to_vec(),
+                    ),
+                    TableKey::from_binary(
+                        d[sized_len + node_static_size * i + NodeElementHash::SIZE
+                            ..sized_len
+                                + node_static_size * i
+                                + NodeElementHash::SIZE
+                                + TableKey::SIZE]
+                            .to_vec(),
+                    ),
+                )
+            })
+            .collect();
+
+        let sized_size = sized_len * (NodeElementHash::SIZE + TableKey::SIZE);
+        let unsized_len = usize::from_le_bytes([
+            d[sized_size + 0],
+            d[sized_size + 1],
+            d[sized_size + 2],
+            d[sized_size + 3],
+            d[sized_size + 4],
+            d[sized_size + 5],
+            d[sized_size + 6],
+            d[sized_size + 7],
+        ]);
+
+        let variable_size = NodeElementHash::SIZE + VariableKey::SIZE;
+        let node_dynamic_sized_keys = (0..unsized_len)
+            .map(|i| {
+                (
+                    NodeElementHash::from_binary(
+                        d[sized_size + 8 + variable_size * i
+                            ..sized_size + 8 + variable_size * i + NodeElementHash::SIZE]
+                            .to_vec(),
+                    ),
+                    VariableKey::from_binary(
+                        d[sized_size + 8 + variable_size * i + NodeElementHash::SIZE
+                            ..sized_size
+                                + 8
+                                + variable_size * i
+                                + NodeElementHash::SIZE
+                                + TableKey::SIZE]
+                            .to_vec(),
+                    ),
+                )
+            })
+            .collect();
+        Self {
+            node_static_sized_keys,
+            node_dynamic_sized_keys,
+        }
     }
 }
 pub trait Node {
@@ -281,11 +350,11 @@ impl Database {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[derive(PartialEq, Debug)]
+    #[derive(PartialEq, Debug, Clone)]
     struct Person {
         name: String,
     }
-    #[derive(PartialEq, Debug)]
+    #[derive(PartialEq, Debug, Clone)]
     struct Pet {
         species: String,
     }
@@ -306,6 +375,9 @@ mod tests {
             sized: Vec<(NodeElementHash, Vec<u8>)>,
             variable: Vec<(NodeElementHash, Vec<u8>)>,
         ) -> Self {
+            assert_eq!(sized.len(), 0);
+            assert_eq!(variable.len(), 1);
+            assert_eq!(variable[0].0, NodeElementHash { hash: 0 });
             todo!()
         }
     }
@@ -346,7 +418,15 @@ mod tests {
                 name: "Bill".to_string()
             }
         );
+    }
+    #[test]
+    fn insert_and_get() {
+        let mut db = Database::new();
+        let bill_data = Person {
+            name: "Bill".to_string(),
+        };
 
-        assert_eq!(2 + 2, 4);
+        let bill = db.insert(bill_data.clone());
+        assert_eq!(db.get::<Person>(bill).unwrap(), bill_data);
     }
 }

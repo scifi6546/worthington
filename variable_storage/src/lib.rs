@@ -385,6 +385,15 @@ mod tests {
         }
     }
     #[test]
+    fn write_expand() {
+        let mut e = VariableExtent::new(InMemoryExtent::new());
+        let k = e.add_entry(vec![]);
+        for i in 0..10000 {
+            e.write_entry(k.clone(), 0, vec![0; i * 10]);
+            assert_eq!(e.get_entry(k.clone()), vec![0; i * 10]);
+        }
+    }
+    #[test]
     fn write_several() {
         let mut e = VariableExtent::new(InMemoryExtent::new());
         assert!(e.is_consistant());
