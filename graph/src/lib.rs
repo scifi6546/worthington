@@ -1,14 +1,7 @@
 use std::collections::HashMap;
-use table::{DatabaseTable, Insertable, InsertableDyn, Key as TableKey};
+use table::{DatabaseTable, Key as TableKey};
+use traits::{Insertable, InsertableDyn, VariableSizeInsert};
 use variable_storage::{InMemoryExtent, Key as VariableKey, VariableExtent};
-pub trait VariableSizeInsert {
-    fn get_data(&self) -> Vec<u8>;
-}
-impl VariableSizeInsert for String {
-    fn get_data(&self) -> Vec<u8> {
-        self.as_bytes().to_vec()
-    }
-}
 #[derive(Clone)]
 pub struct Key {
     key: VariableKey,
@@ -19,7 +12,7 @@ pub struct NodeElementHash {
 }
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub struct NodeHash {
-    hash: usize,
+    pub hash: usize,
 }
 unsafe impl InsertableDyn for NodeHash {
     fn size(&self) -> u32 {

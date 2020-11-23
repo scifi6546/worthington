@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 syn = "1.0"
 quote = "1.0"
+graph = {path="../graph"}
 
 [lib]
 proc-macro = true

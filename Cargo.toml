@@ -6,6 +6,7 @@ members = [
     "graph",
     "macro_lib",
     "macro_use",
+    "traits",
 ]
 [profile.release]
 debug=true

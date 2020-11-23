@@ -1,4 +1,4 @@
-use table::{DatabaseTable, InsertableDyn};
+use table::DatabaseTable;
 fn main() {
     let mut t: DatabaseTable = DatabaseTable::new();
     let mut v = vec![];

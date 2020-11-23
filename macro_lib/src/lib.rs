@@ -1,32 +1,51 @@
-use proc_macro::{TokenStream, TokenTree};
+use graph::Node;
+
+extern crate proc_macro;
+use proc_macro::{Delimiter, Group, Ident, Span, TokenStream, TokenTree};
 use quote::quote;
+use syn;
 use syn::{parse_macro_input, DeriveInput};
-#[proc_macro]
-pub fn database_schema(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(NodeT)]
+pub fn node(input: TokenStream) -> TokenStream {
     // Parse the input tokens into a syntax tree
 
-    for token in input {
-        match token {
-            TokenTree::Group(_) => (println!("in group")),
-            TokenTree::Ident(_) => (),
-            TokenTree::Punct(_) => (),
-            TokenTree::Literal(_) => (),
-        }
-    }
+    let ast = parse_macro_input!(input as DeriveInput);
+    let name = &ast.ident;
+    let tree = quote! {impl Node for #name{
 
-    // Build the output, possibly using quasi-quotation
-    let expanded = quote! {
-        // ...
-    };
 
-    let mut tree = TokenStream::new();
+        const HASH: NodeHash=NodeHash{hash:0};
+    fn get_data(
+        &self,
+    ) -> (
+        Vec<(NodeElementHash, Box<dyn InsertableDyn>)>,
+        Vec<(NodeElementHash, Box<dyn VariableSizeInsert>)>,
+    ){todo!()}
+    fn from_data(
+        sized: Vec<(NodeElementHash, Vec<u8>)>,
+        variable: Vec<(NodeElementHash, Vec<u8>)>,
+    ) -> Self{todo!()}}}
+    .into();
+
+    //let mut tree = TokenStream::new();
+    //tree.extend(vec![
+    //    TokenTree::Ident(Ident::new("impl", Span::call_site())),
+    //    TokenTree::Ident(Ident::new("Node", Span::call_site())),
+    //    TokenTree::Ident(Ident::new("for", Span::call_site())),
+    //    TokenTree::Ident(Ident::new("Bar", Span::call_site())),
+    //    TokenTree::Group(Group::new(Delimiter::Brace, TokenStream::new())),
+    //]);
     return tree;
 }
 #[cfg(test)]
 mod tests {
+    #[node]
+    struct Bar {}
 
     #[test]
-    fn it_works() {
+    fn empty() {
+        let b = Bar {};
+        bar.to_data();
         //#[macro_use]
         //extern crate graph;
         //database_schema!(Person { name: String }, Pet { species: String });

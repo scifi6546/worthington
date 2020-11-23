@@ -8,3 +8,5 @@ edition = "2018"
 
 [dependencies]
 macro_lib={path="../macro_lib"}
+graph = {path="../graph"}
+traits={path="../traits"}
