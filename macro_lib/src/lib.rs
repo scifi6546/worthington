@@ -45,7 +45,6 @@ pub fn node(input: TokenStream) -> TokenStream {
         hash_bytes[7],
     ]);
 
-    let q = quote! {let a =0;};
     let name = &ast.ident;
     let tree = quote! {impl Node for #name{
         const HASH: NodeHash=NodeHash{hash:#hash};
@@ -74,7 +73,10 @@ pub fn node(input: TokenStream) -> TokenStream {
         fn from_data(
             sized: Vec<(NodeElementHash, Vec<u8>)>,
             variable: Vec<(NodeElementHash, Vec<u8>)>,
-        ) -> Self{todo!()}}
+        ) -> Self{
+
+
+            todo!()}}
 
     }
     .into();
@@ -105,32 +107,4 @@ pub fn hash(input: TokenStream) -> TokenStream {
     ]);
     let t = quote! {NodeHash{hash:#hash}};
     t.into()
-}
-#[cfg(test)]
-mod tests {
-    #[node]
-    struct Bar {}
-
-    #[test]
-    fn empty() {
-        let b = Bar {};
-        bar.to_data();
-        //#[macro_use]
-        //extern crate graph;
-        //database_schema!(Person { name: String }, Pet { species: String });
-        //let db = Database::new();
-        //let person_key: Box<Person::key> = db.Person.insert(Person::new {
-        //    name: "Bill".to_string(),
-        //});
-        //let jill_key: Box<Person::key> = db.Person.insert(Person::new {
-        //    name: "Jill".to_string(),
-        //});
-        //let pet_key: Box<Pet::Key> = db.Pet.insert(Pet::new {
-        //    species: "dog".to_string(),
-        //});
-        //db.link(person_key, pet_key);
-        //for pet in db.Person.Pet {
-        //    assert_eq!(pet.species, "dog".to_string());
-        //}
-    }
 }

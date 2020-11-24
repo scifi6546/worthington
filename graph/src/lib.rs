@@ -1,6 +1,11 @@
 use std::collections::HashMap;
 use table::{DatabaseTable, Key as TableKey};
 use traits::{Insertable, InsertableDyn, Node, NodeElementHash, NodeHash, VariableSizeInsert};
+pub mod prelude {
+    pub use traits::{
+        Insertable, InsertableDyn, Node, NodeElementHash, NodeHash, VariableSizeInsert,
+    };
+}
 use variable_storage::{InMemoryExtent, Key as VariableKey, VariableExtent};
 #[derive(Clone)]
 pub struct Key {
