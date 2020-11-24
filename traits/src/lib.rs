@@ -1,4 +1,9 @@
+#[macro_use]
+extern crate macro_lib;
+
+mod node_base;
 use dyn_clonable::*;
+pub use node_base::{Node, NodeElementHash, NodeHash};
 pub unsafe trait Insertable {
     const SIZE: usize;
     fn from_binary(data: Vec<u8>) -> Self;
@@ -26,7 +31,8 @@ unsafe impl InsertableDyn for u8 {
         vec![self.clone()]
     }
 }
-pub trait VariableSizeInsert {
+#[clonable]
+pub trait VariableSizeInsert: Clone {
     fn get_data(&self) -> Vec<u8>;
 }
 impl VariableSizeInsert for String {
@@ -62,6 +68,20 @@ unsafe impl Insertable for usize {
     const SIZE: usize = 8;
     fn from_binary(d: Vec<u8>) -> Self {
         usize::from_le_bytes([d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]])
+    }
+}
+unsafe impl Insertable for f32 {
+    const SIZE: usize = 4;
+    fn from_binary(d: Vec<u8>) -> Self {
+        f32::from_le_bytes([d[0], d[1], d[2], d[3]])
+    }
+}
+unsafe impl InsertableDyn for f32 {
+    fn size(&self) -> u32 {
+        4
+    }
+    fn to_binary(&self) -> Vec<u8> {
+        self.to_le_bytes().to_vec()
     }
 }
 #[cfg(test)]

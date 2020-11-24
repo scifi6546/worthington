@@ -1,9 +1,15 @@
 #[macro_use]
 extern crate macro_lib;
-use graph::{Node, NodeElementHash, NodeHash};
-use traits::{Insertable, InsertableDyn, VariableSizeInsert};
-#[derive(NodeT)]
+use traits::{Insertable, InsertableDyn, Node, NodeElementHash, NodeHash, VariableSizeInsert};
+#[derive(GraphInsertable)]
 struct Bar {}
+#[derive(GraphInsertable)]
+struct Foo {}
+#[derive(GraphInsertable)]
+struct Person {
+    age: f32,
+}
 fn main() {
-    println!("Hello, world!");
+    println!("Foo: {}", Foo::HASH.hash);
+    println!("Bar: {}", Bar::HASH.hash);
 }

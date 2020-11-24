@@ -1,34 +1,10 @@
 use std::collections::HashMap;
 use table::{DatabaseTable, Key as TableKey};
-use traits::{Insertable, InsertableDyn, VariableSizeInsert};
+use traits::{Insertable, InsertableDyn, Node, NodeElementHash, NodeHash, VariableSizeInsert};
 use variable_storage::{InMemoryExtent, Key as VariableKey, VariableExtent};
 #[derive(Clone)]
 pub struct Key {
     key: VariableKey,
-}
-#[derive(PartialEq, Eq, Hash, Clone, Debug)]
-pub struct NodeElementHash {
-    hash: usize,
-}
-#[derive(PartialEq, Eq, Hash, Clone)]
-pub struct NodeHash {
-    pub hash: usize,
-}
-unsafe impl InsertableDyn for NodeHash {
-    fn size(&self) -> u32 {
-        8
-    }
-    fn to_binary(&self) -> Vec<u8> {
-        self.hash.to_le_bytes().to_vec()
-    }
-}
-unsafe impl Insertable for NodeHash {
-    const SIZE: usize = 8;
-    fn from_binary(d: Vec<u8>) -> Self {
-        Self {
-            hash: usize::from_le_bytes([d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]]),
-        }
-    }
 }
 #[derive(Clone)]
 struct NodeKeyStorage {
@@ -73,22 +49,6 @@ impl NodeKeyStorage {
             self_hash,
             linked_nodes,
         }
-    }
-}
-unsafe impl Insertable for NodeElementHash {
-    const SIZE: usize = 8;
-    fn from_binary(d: Vec<u8>) -> Self {
-        Self {
-            hash: usize::from_le_bytes([d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]]),
-        }
-    }
-}
-unsafe impl InsertableDyn for NodeElementHash {
-    fn size(&self) -> u32 {
-        8
-    }
-    fn to_binary(&self) -> Vec<u8> {
-        self.hash.to_le_bytes().to_vec()
     }
 }
 #[derive(Clone)]
@@ -191,20 +151,6 @@ impl NodeStorage {
             node_dynamic_sized_keys,
         }
     }
-}
-pub trait Node {
-    //hash of the database name
-    const HASH: NodeHash;
-    fn get_data(
-        &self,
-    ) -> (
-        Vec<(NodeElementHash, Box<dyn InsertableDyn>)>,
-        Vec<(NodeElementHash, Box<dyn VariableSizeInsert>)>,
-    );
-    fn from_data(
-        sized: Vec<(NodeElementHash, Vec<u8>)>,
-        variable: Vec<(NodeElementHash, Vec<u8>)>,
-    ) -> Self;
 }
 pub enum DatabseError {
     InvalidKey(Key),
