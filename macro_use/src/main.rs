@@ -10,6 +10,6 @@ struct Person {
     age: f32,
 }
 fn main() {
-    println!("Foo: {}", Foo::HASH.hash);
-    println!("Bar: {}", Bar::HASH.hash);
+    println!("Foo: {}", Foo::SELF_HASH.hash);
+    println!("Bar: {}", Bar::SELF_HASH.hash);
 }

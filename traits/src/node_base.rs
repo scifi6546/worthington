@@ -41,7 +41,9 @@ unsafe impl Insertable for NodeHash {
 }
 pub trait Node {
     //hash of the database name
-    const HASH: NodeHash;
+    const SELF_HASH: NodeHash;
+    fn get_sized_hashes() -> Vec<NodeElementHash>;
+    fn get_variable_hashes() -> Vec<NodeElementHash>;
     fn get_data(
         &self,
     ) -> (
@@ -54,7 +56,14 @@ pub trait Node {
     ) -> Self;
 }
 impl Node for f32 {
-    const HASH: NodeHash = hash!(f32);
+    const SELF_HASH: NodeHash = NodeHash { hash: hash!(f32) };
+    fn get_sized_hashes() -> Vec<NodeElementHash> {
+        vec![NodeElementHash { hash: hash!(f32) }]
+    }
+    fn get_variable_hashes() -> Vec<NodeElementHash> {
+        vec![]
+    }
+
     fn get_data(
         &self,
     ) -> (
@@ -64,7 +73,7 @@ impl Node for f32 {
         return (
             vec![(
                 NodeElementHash {
-                    hash: Self::HASH.hash,
+                    hash: Self::SELF_HASH.hash,
                 },
                 Box::new(self.clone()),
             )],
@@ -75,7 +84,7 @@ impl Node for f32 {
         sized: Vec<(NodeElementHash, Vec<u8>)>,
         _variable: Vec<(NodeElementHash, Vec<u8>)>,
     ) -> Self {
-        assert_eq!(sized[0].clone().0.hash, Self::HASH.hash);
+        assert_eq!(sized[0].clone().0.hash, Self::SELF_HASH.hash);
         Self::from_binary(sized[0].1.clone())
     }
 }

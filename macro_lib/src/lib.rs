@@ -3,7 +3,7 @@ extern crate proc_macro;
 use proc_macro::{Delimiter, Group, Ident as procIdent, Span, TokenStream, TokenTree};
 use quote::quote;
 use syn::Data;
-use syn::{parse_macro_input, DataStruct, DeriveInput, Fields};
+use syn::{parse_macro_input, DataStruct, DeriveInput, Fields, Path, Type};
 fn parse_struct(s: DataStruct) -> Vec<syn::Ident> {
     match s.fields {
         Fields::Named(named) => {
@@ -18,14 +18,27 @@ fn parse_struct(s: DataStruct) -> Vec<syn::Ident> {
         Fields::Unit => todo!(),
     }
 }
+fn get_paths(s: DataStruct) -> Vec<Path> {
+    s.fields
+        .into_iter()
+        .map(|field| match field.ty {
+            Type::Array(_) => panic!("invalid type: array"),
+            Type::BareFn(_) => panic!("invalid type: barefn"),
+            Type::Path(p) => p.path,
+
+            Type::Verbatim(s) => panic!("invalid type: Verbatim"),
+            _ => panic!("invalid type"),
+        })
+        .collect()
+}
 #[proc_macro_derive(GraphInsertable)]
 pub fn node(input: TokenStream) -> TokenStream {
     // Parse the input tokens into a syntax tree
 
     let mut hasher = Sha256::new();
     let ast = parse_macro_input!(input as DeriveInput);
-    let sized = match ast.data {
-        Data::Struct(s) => parse_struct(s),
+    let (sized, types) = match ast.data {
+        Data::Struct(s) => (parse_struct(s.clone()), get_paths(s)),
         Data::Enum(_) => todo!(),
         Data::Union(_) => todo!(),
     };
@@ -47,7 +60,23 @@ pub fn node(input: TokenStream) -> TokenStream {
 
     let name = &ast.ident;
     let tree = quote! {impl Node for #name{
-        const HASH: NodeHash=NodeHash{hash:#hash};
+        const SELF_HASH: NodeHash=NodeHash{hash:#hash};
+        fn get_sized_hashes() -> Vec<NodeElementHash> {
+            let mut out = vec![];
+            #({
+                out.append(&mut #types::get_sized_hashes());
+
+            })*
+            return out;
+        }
+        fn get_variable_hashes() -> Vec<NodeElementHash> {
+            let mut out = vec![];
+            #({
+                out.append(&mut #types::get_variable_hashes());
+
+            })*
+            return out;
+        }
         fn get_data(&self)->(
             Vec<(NodeElementHash, Box<dyn InsertableDyn>)>,
             Vec<(NodeElementHash, Box<dyn VariableSizeInsert>)>,
@@ -74,9 +103,44 @@ pub fn node(input: TokenStream) -> TokenStream {
             sized: Vec<(NodeElementHash, Vec<u8>)>,
             variable: Vec<(NodeElementHash, Vec<u8>)>,
         ) -> Self{
+            #(
+                let #sized = {
+                    let mut sized_data = vec![];
+                    for (hash,data) in sized.iter(){
+                        for client_hash in Self::get_sized_hashes().iter(){
+                            if hash==client_hash{
+                                sized_data.push((hash.clone(),data.clone()));
+
+                            }
+
+                        }
+
+                    }
+                    let mut variable_data = vec![];
+                    for (hash,data) in variable.iter(){
+                        for client_hash in Self::get_variable_hashes().iter(){
+                            if hash==client_hash{
+                                variable_data.push((hash.clone(),data.clone()));
+
+                            }
+
+                        }
+
+                    }
+                    #types::from_data(sized_data,variable_data)
+                };
+
+            )*
+                Self{
+                    #(
+                        #sized
+
+                    ),*
+
+                }
 
 
-            todo!()}}
+            }}
 
     }
     .into();
@@ -105,6 +169,6 @@ pub fn hash(input: TokenStream) -> TokenStream {
         hash_bytes[6],
         hash_bytes[7],
     ]);
-    let t = quote! {NodeHash{hash:#hash}};
+    let t = quote! {#hash};
     t.into()
 }

@@ -3,6 +3,14 @@ use graph::prelude::*;
 extern crate macro_lib;
 #[derive(GraphInsertable, Debug, PartialEq)]
 struct Empty {}
+/*
+#[derive(GraphInsertable, Debug, PartialEq)]
+struct Person {
+    age: u64,
+    name: String,
+}
+*/
+
 #[cfg(test)]
 mod tests {
     use super::*;
