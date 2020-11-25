@@ -1,19 +1,16 @@
 use sha2::{Digest, Sha256};
 extern crate proc_macro;
-use proc_macro::{Delimiter, Group, Ident as procIdent, Span, TokenStream, TokenTree};
+use proc_macro::{TokenStream, TokenTree};
 use quote::quote;
 use syn::Data;
 use syn::{parse_macro_input, DataStruct, DeriveInput, Fields, Path, Type};
 fn parse_struct(s: DataStruct) -> Vec<syn::Ident> {
     match s.fields {
-        Fields::Named(named) => {
-            let mut v: Vec<syn::Ident> = vec![];
-            named
-                .named
-                .iter()
-                .map(|f| f.ident.clone().unwrap())
-                .collect()
-        }
+        Fields::Named(named) => named
+            .named
+            .iter()
+            .map(|f| f.ident.clone().unwrap())
+            .collect(),
         Fields::Unnamed(_) => todo!(),
         Fields::Unit => todo!(),
     }
@@ -26,7 +23,7 @@ fn get_paths(s: DataStruct) -> Vec<Path> {
             Type::BareFn(_) => panic!("invalid type: barefn"),
             Type::Path(p) => p.path,
 
-            Type::Verbatim(s) => panic!("invalid type: Verbatim"),
+            Type::Verbatim(_) => panic!("invalid type: Verbatim"),
             _ => panic!("invalid type"),
         })
         .collect()

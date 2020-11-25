@@ -1,4 +1,3 @@
-use dyn_clonable::*;
 use std::sync::RwLock;
 use traits::{Insertable, InsertableDyn};
 pub struct DatabaseTable {

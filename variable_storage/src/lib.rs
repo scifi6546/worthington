@@ -377,7 +377,7 @@ mod tests {
     #[test]
     fn write_toture_test() {
         let mut e = VariableExtent::new(InMemoryExtent::new());
-        for i in 0..5 {
+        for _ in 0..5 {
             let key = e.add_entry(vec![]);
             let v: Vec<u8> = (1..10000).map(|_| 0).collect();
             e.write_entry(key.clone(), 0, v.clone());

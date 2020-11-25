@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate macro_lib;
-use traits::{Insertable, InsertableDyn, Node, NodeElementHash, NodeHash, VariableSizeInsert};
+use traits::{InsertableDyn, Node, NodeElementHash, NodeHash, VariableSizeInsert};
 #[derive(GraphInsertable)]
 struct Bar {}
 #[derive(GraphInsertable)]
