@@ -21,7 +21,7 @@ struct NodeKeyStorage {
     linked_nodes: Vec<VariableKey>,
 }
 impl VariableSizeInsert for NodeKeyStorage {
-    fn get_data(&self) -> Vec<u8> {
+    fn get_data_variable(&self) -> Vec<u8> {
         let mut buffer = self.self_members.to_binary();
         buffer.append(&mut self.self_hash.to_binary());
         for key in self.linked_nodes.iter() {
@@ -205,7 +205,7 @@ impl Database {
                         self.variable
                             .get_mut(hash)
                             .unwrap()
-                            .add_entry(data.get_data()),
+                            .add_entry(data.get_data_variable()),
                     )
                 } else {
                     self.variable
@@ -215,7 +215,7 @@ impl Database {
                         self.variable
                             .get_mut(hash)
                             .unwrap()
-                            .add_entry(data.get_data()),
+                            .add_entry(data.get_data_variable()),
                     )
                 }
             })
@@ -240,7 +240,7 @@ impl Database {
             linked_nodes: vec![],
         };
         Key {
-            key: self.node_storage.add_entry(node_keys.get_data()),
+            key: self.node_storage.add_entry(node_keys.get_data_variable()),
         }
     }
     pub fn connect(&mut self, key1: Key, key2: Key) -> Result<(), DatabseError> {

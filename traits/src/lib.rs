@@ -17,10 +17,10 @@ pub unsafe trait InsertableDyn: Clone {
 }
 #[clonable]
 pub trait VariableSizeInsert: Clone {
-    fn get_data(&self) -> Vec<u8>;
+    fn get_data_variable(&self) -> Vec<u8>;
 }
 impl VariableSizeInsert for String {
-    fn get_data(&self) -> Vec<u8> {
+    fn get_data_variable(&self) -> Vec<u8> {
         self.as_bytes().to_vec()
     }
 }

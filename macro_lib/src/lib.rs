@@ -61,15 +61,24 @@ pub fn node(input: TokenStream) -> TokenStream {
         fn get_sized_hashes() -> Vec<NodeElementHash> {
             let mut out = vec![];
             #({
-                out.append(&mut #types::get_sized_hashes());
+                for hash in #types::get_sized_hashes(){
+                    out.push(NodeElementHash{hash:hash.hash^#hash});
+
+                }
+
 
             })*
             return out;
         }
         fn get_variable_hashes() -> Vec<NodeElementHash> {
+            
             let mut out = vec![];
             #({
-                out.append(&mut #types::get_variable_hashes());
+                for hash in #types::get_variable_hashes(){
+                    out.push(NodeElementHash{hash:hash.hash^#hash});
+
+                }
+
 
             })*
             return out;
@@ -88,7 +97,7 @@ pub fn node(input: TokenStream) -> TokenStream {
                     let mut sized_new = sized.iter().map(|(hash,i)|
 
                         (NodeElementHash{hash:hash.hash&#hash},i.clone())).collect();
-                    let mut var_new = var.iter().map(|(hash,i)|(NodeElementHash{hash:hash.hash&#hash},i.clone())).collect();
+                    let mut var_new = var.iter().map(|(hash,i)|(NodeElementHash{hash:hash.hash^#hash},i.clone())).collect();
                     sized_out.append(&mut sized_new);
                     variable_out.append(&mut var_new);
                 }
@@ -105,8 +114,12 @@ pub fn node(input: TokenStream) -> TokenStream {
                     let mut sized_data = vec![];
                     for (hash,data) in sized.iter(){
                         for client_hash in Self::get_sized_hashes().iter(){
+                            println!("static: hash: {} client hash: {}",hash.hash,client_hash.hash);
                             if hash==client_hash{
-                                sized_data.push((hash.clone(),data.clone()));
+                                sized_data.push((NodeElementHash{hash:hash.hash^#hash},data.clone()));
+
+                            }else{
+                                println!("not equal");
 
                             }
 
@@ -116,14 +129,15 @@ pub fn node(input: TokenStream) -> TokenStream {
                     let mut variable_data = vec![];
                     for (hash,data) in variable.iter(){
                         for client_hash in Self::get_variable_hashes().iter(){
+                            println!("variable: hash: {} client hash: {}",hash.hash,client_hash.hash);
                             if hash==client_hash{
-                                variable_data.push((hash.clone(),data.clone()));
+                                variable_data.push((NodeElementHash{hash:hash.hash^#hash},data.clone()));
 
                             }
-
                         }
 
                     }
+                    println!("variable data len: {}",variable_data.len());
                     #types::from_data(sized_data,variable_data)
                 };
 
