@@ -96,7 +96,7 @@ pub fn node(input: TokenStream) -> TokenStream {
                         .get_data();
                     let mut sized_new = sized.iter().map(|(hash,i)|
 
-                        (NodeElementHash{hash:hash.hash&#hash},i.clone())).collect();
+                        (NodeElementHash{hash:hash.hash^#hash},i.clone())).collect();
                     let mut var_new = var.iter().map(|(hash,i)|(NodeElementHash{hash:hash.hash^#hash},i.clone())).collect();
                     sized_out.append(&mut sized_new);
                     variable_out.append(&mut var_new);

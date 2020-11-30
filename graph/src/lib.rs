@@ -56,7 +56,7 @@ impl NodeKeyStorage {
         }
     }
 }
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 struct NodeStorage {
     node_static_sized_keys: Vec<(NodeElementHash, TableKey)>,
     node_dynamic_sized_keys: Vec<(NodeElementHash, VariableKey)>,
@@ -100,15 +100,16 @@ impl NodeStorage {
         let node_static_size = NodeElementHash::SIZE + TableKey::SIZE;
         let node_static_sized_keys = (0..sized_len)
             .map(|i| {
+                let start = 8;
                 (
                     NodeElementHash::from_binary(
-                        d[sized_len + node_static_size * i
-                            ..sized_len + node_static_size * i + NodeElementHash::SIZE]
+                        d[start + node_static_size * i
+                            ..start + node_static_size * i + NodeElementHash::SIZE]
                             .to_vec(),
                     ),
                     TableKey::from_binary(
-                        d[sized_len + node_static_size * i + NodeElementHash::SIZE
-                            ..sized_len
+                        d[start + node_static_size * i + NodeElementHash::SIZE
+                            ..start
                                 + node_static_size * i
                                 + NodeElementHash::SIZE
                                 + TableKey::SIZE]
@@ -289,5 +290,69 @@ impl Database {
             })
             .collect();
         Some(Data::from_data(sized, variable))
+    }
+}
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn node_storage() {
+        let s = NodeStorage {
+            node_static_sized_keys: vec![(NodeElementHash { hash: 0 }, TableKey { index: 0 })],
+            node_dynamic_sized_keys: vec![(NodeElementHash { hash: 0 }, VariableKey { index: 0 })],
+        };
+        let bin = s.to_binary();
+        assert_eq!(s, NodeStorage::from_binary(bin));
+    }
+    #[test]
+    fn testing_eq() {
+        let s = NodeStorage {
+            node_static_sized_keys: vec![(NodeElementHash { hash: 0 }, TableKey { index: 0 })],
+            node_dynamic_sized_keys: vec![(NodeElementHash { hash: 0 }, VariableKey { index: 0 })],
+        };
+        let s2 = NodeStorage {
+            node_static_sized_keys: vec![(NodeElementHash { hash: 1 }, TableKey { index: 0 })],
+            node_dynamic_sized_keys: vec![(NodeElementHash { hash: 1 }, VariableKey { index: 0 })],
+        };
+        assert!(s != s2);
+    }
+    #[test]
+    fn big_hashes() {
+        let s = NodeStorage {
+            node_static_sized_keys: vec![(
+                NodeElementHash {
+                    hash: 0x12_21_12_21_12_98_67_58,
+                },
+                TableKey {
+                    index: 0x32_89_29_81_42_29_62_90,
+                },
+            )],
+            node_dynamic_sized_keys: vec![(
+                NodeElementHash {
+                    hash: 0x72_34_34_97_a2_97_86_89,
+                },
+                VariableKey {
+                    index: 0x34_86_86_31_92_22_31_92,
+                },
+            )],
+        };
+        let bin = s.to_binary();
+        assert_eq!(s, NodeStorage::from_binary(bin));
+    }
+    #[test]
+    fn big_hashes_static_only() {
+        let s = NodeStorage {
+            node_static_sized_keys: vec![(
+                NodeElementHash {
+                    hash: 0x12_21_12_21_12_98_67_58,
+                },
+                TableKey {
+                    index: 0x32_89_29_81_42_29_62_90,
+                },
+            )],
+            node_dynamic_sized_keys: vec![],
+        };
+        let bin = s.to_binary();
+        assert_eq!(s, NodeStorage::from_binary(bin));
     }
 }

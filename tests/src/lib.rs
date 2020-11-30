@@ -7,6 +7,11 @@ struct Empty {}
 struct S {
     name: String,
 }
+
+#[derive(GraphInsertable, Debug, PartialEq, Clone)]
+struct SizedOnly {
+    age: u64,
+}
 #[derive(GraphInsertable, Debug, PartialEq, Clone)]
 struct Person {
     age: u64,
@@ -22,6 +27,13 @@ mod tests {
         let mut db = Database::new();
         let e = db.insert(Empty {});
         assert_eq!(db.get::<Empty>(e).unwrap(), Empty {});
+    }
+    #[test]
+    fn sized_only() {
+        let mut db = Database::new();
+        let s = SizedOnly { age: 1 };
+        let k = db.insert(s.clone());
+        assert_eq!(db.get::<SizedOnly>(k).unwrap(), s);
     }
     #[test]
     fn insert_string() {

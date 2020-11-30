@@ -24,9 +24,9 @@ pub trait Extent: Index<usize, Output = u8> + IndexMut<usize, Output = u8> {
     /// Gets the number of availible bytes
     fn len(&self) -> usize;
 }
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Key {
-    index: usize,
+    pub index: usize,
 }
 pub struct VariableExtent<ExtentT: Extent> {
     data_store: ExtentT,

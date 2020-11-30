@@ -3,9 +3,9 @@ use traits::{Insertable, InsertableDyn};
 pub struct DatabaseTable {
     data: Vec<RwLock<Block>>,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Key {
-    index: usize,
+    pub index: usize,
 }
 
 unsafe impl Insertable for Key {
@@ -19,6 +19,7 @@ unsafe impl Insertable for Key {
 pub enum TableError {
     InvalidKey,
     InvalidLock,
+    KeyNotUsed,
 }
 impl DatabaseTable {
     const BLOCK_SIZE: u32 = 0x1000;
@@ -34,7 +35,11 @@ impl DatabaseTable {
             return Err(TableError::InvalidKey);
         }
         if let Some(block) = self.data[key.index / Self::BLOCK_SIZE as usize].read().ok() {
-            Ok(block.get_data(key.index as u32 % Self::BLOCK_SIZE, ctor))
+            if let Some(data) = block.get_data(key.index as u32 % Self::BLOCK_SIZE, ctor) {
+                Ok(data)
+            } else {
+                Err(TableError::KeyNotUsed)
+            }
         } else {
             return Err(TableError::InvalidLock);
         }
@@ -82,11 +87,15 @@ impl Block {
             data_size,
         }
     }
-    fn get_data<Data: InsertableDyn>(&self, index: u32, ctor: fn(Vec<u8>) -> Data) -> Data {
-        let buffer: Vec<u8> = self.data
-            [(index * self.data_size) as usize..((index + 1) * self.data_size) as usize]
-            .to_vec();
-        ctor(buffer)
+    fn get_data<Data: InsertableDyn>(&self, index: u32, ctor: fn(Vec<u8>) -> Data) -> Option<Data> {
+        if self.bitmap.get(index) {
+            let buffer: Vec<u8> = self.data
+                [(index * self.data_size) as usize..((index + 1) * self.data_size) as usize]
+                .to_vec();
+            Some(ctor(buffer))
+        } else {
+            None
+        }
     }
     fn write_index<Data: InsertableDyn>(&mut self, index: u32, data: Data) {
         let buffer = data.to_binary();
