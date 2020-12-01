@@ -1,5 +1,4 @@
 use std::cmp::min;
-use std::ops::{Index, IndexMut};
 use traits::{Extent, Insertable, InsertableDyn};
 unsafe impl InsertableDyn for Key {
     fn size(&self) -> u32 {
