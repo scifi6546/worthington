@@ -41,7 +41,7 @@ impl<Store: Extent> DatabaseTable<Store> {
         if key.index > self.data.len() * self.element_size {
             return Err(TableError::InvalidKey);
         }
-        if self.bitmap.get(key.index) == true {
+        if self.bitmap.get(key.index) == false {
             return Err(TableError::InvalidKey);
         }
         let data = (0..self.element_size)
@@ -63,11 +63,11 @@ impl<Store: Extent> DatabaseTable<Store> {
         self.data.resize(self.data.len() + self.element_size);
         self.bitmap.resize(self.bitmap.len() + 1);
 
-        let len = self.data.len();
+        let len = self.bitmap.len();
         for i in 0..self.element_size {
-            self.data[(len - 1) / self.element_size + i] = bytes[i];
+            self.data[(len - 1) * self.element_size + i] = bytes[i];
         }
-        let index = (self.data.len() - 1) / self.element_size;
+        let index = len - 1;
         self.bitmap.set(index, true);
         return Key { index };
     }
@@ -89,7 +89,6 @@ impl Bitmap {
             len,
         }
     }
-    #[allow(dead_code)]
     pub fn get(&self, index: usize) -> bool {
         if index >= self.len {
             panic!("out of bounds")
@@ -108,7 +107,12 @@ impl Bitmap {
             if i != &u64::MAX {
                 for j in 0..Self::INT_SIZE {
                     if !i & (1 << j as u64) == (1 << j as u64) {
-                        return Some(index * Self::INT_SIZE + j);
+                        let return_index = index * Self::INT_SIZE + j;
+                        if return_index < self.len() {
+                            return Some(return_index);
+                        } else {
+                            return None;
+                        }
                     }
                 }
             }
@@ -132,7 +136,7 @@ impl Bitmap {
     }
     pub fn resize(&mut self, new_size: usize) {
         let new_len = {
-            let modulo = new_size & Self::INT_SIZE;
+            let modulo = new_size % Self::INT_SIZE;
             if modulo != 0 {
                 new_size / Self::INT_SIZE + 1
             } else {
@@ -140,6 +144,7 @@ impl Bitmap {
             }
         };
         self.data.resize_with(new_len, || 0);
+        self.len = new_size;
     }
 }
 unsafe impl InsertableDyn for Key {
@@ -156,6 +161,7 @@ pub fn from_binary(data: Vec<u8>) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use traits::InMemoryExtent;
     #[test]
     fn test_bitmap() {
         let mut b = Bitmap::new(64);
@@ -175,11 +181,17 @@ mod tests {
 
     #[test]
     fn make_db() {
-        let _ = DatabaseTable::new();
+        let _ = DatabaseTable::new(InMemoryExtent::new(), std::mem::size_of::<u32>());
+    }
+    #[test]
+    fn insert_and_get_single() {
+        let mut db = DatabaseTable::new(InMemoryExtent::new(), std::mem::size_of::<u32>());
+        let k1 = db.insert::<u32>(1);
+        assert_eq!(db.get::<u32>(k1, from_binary).ok().unwrap(), 1);
     }
     #[test]
     fn insert_and_get() {
-        let mut db: DatabaseTable = DatabaseTable::new();
+        let mut db = DatabaseTable::new(InMemoryExtent::new(), std::mem::size_of::<u32>());
         let k1 = db.insert::<u32>(1);
         let k2 = db.insert::<u32>(2);
         assert_eq!(db.get::<u32>(k1, from_binary).ok().unwrap(), 1);
@@ -187,7 +199,7 @@ mod tests {
     }
     #[test]
     fn mass_insert() {
-        let mut db: DatabaseTable = DatabaseTable::new();
+        let mut db = DatabaseTable::new(InMemoryExtent::new(), std::mem::size_of::<u32>());
         let mut keys = vec![];
         for i in 0..100 {
             keys.push((db.insert::<u32>(i), i));
