@@ -1,6 +1,6 @@
 use std::cmp::min;
 use std::ops::{Index, IndexMut};
-use traits::{Insertable, InsertableDyn};
+use traits::{Extent, Insertable, InsertableDyn};
 unsafe impl InsertableDyn for Key {
     fn size(&self) -> u32 {
         8
@@ -16,13 +16,6 @@ unsafe impl Insertable for Key {
             index: usize::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]),
         }
     }
-}
-pub trait Extent: Index<usize, Output = u8> + IndexMut<usize, Output = u8> {
-    /// Resizes extent. If extent is grown no garuentees are made about the contents of the new
-    /// data
-    fn resize(&mut self, new_size: usize);
-    /// Gets the number of availible bytes
-    fn len(&self) -> usize;
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct Key {

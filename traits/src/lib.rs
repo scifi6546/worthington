@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate macro_lib;
+use std::ops::{Index, IndexMut};
 
 mod insertable_impl;
 mod node_base;
@@ -23,6 +24,13 @@ impl VariableSizeInsert for String {
     fn get_data_variable(&self) -> Vec<u8> {
         self.as_bytes().to_vec()
     }
+}
+pub trait Extent: Index<usize, Output = u8> + IndexMut<usize, Output = u8> {
+    /// Resizes extent. If extent is grown no garuentees are made about the contents of the new
+    /// data
+    fn resize(&mut self, new_size: usize);
+    /// Gets the number of availible bytes
+    fn len(&self) -> usize;
 }
 #[cfg(test)]
 mod tests {

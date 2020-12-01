@@ -1,7 +1,9 @@
 use std::sync::RwLock;
-use traits::{Insertable, InsertableDyn};
-pub struct DatabaseTable {
-    data: Vec<RwLock<Block>>,
+use traits::{Extent, Insertable, InsertableDyn};
+pub struct DatabaseTable<Store: Extent> {
+    bitmap: Bitmap,
+    data: Store,
+    element_size: usize,
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct Key {
@@ -21,111 +23,78 @@ pub enum TableError {
     InvalidLock,
     KeyNotUsed,
 }
-impl DatabaseTable {
+impl<Store: Extent> DatabaseTable<Store> {
     const BLOCK_SIZE: u32 = 0x1000;
-    pub fn new() -> Self {
-        Self { data: vec![] }
+    pub fn new(data: Store, element_size: usize) -> Self {
+        let bitmap = Bitmap::new(0);
+        Self {
+            bitmap,
+            data,
+            element_size,
+        }
     }
     pub fn get<Data: InsertableDyn>(
         &self,
         key: Key,
         ctor: fn(Vec<u8>) -> Data,
     ) -> Result<Data, TableError> {
-        if key.index > self.data.len() * Self::BLOCK_SIZE as usize {
+        if key.index > self.data.len() * self.element_size {
             return Err(TableError::InvalidKey);
         }
-        if let Some(block) = self.data[key.index / Self::BLOCK_SIZE as usize].read().ok() {
-            if let Some(data) = block.get_data(key.index as u32 % Self::BLOCK_SIZE, ctor) {
-                Ok(data)
-            } else {
-                Err(TableError::KeyNotUsed)
-            }
-        } else {
-            return Err(TableError::InvalidLock);
+        if self.bitmap.get(key.index) == true {
+            return Err(TableError::InvalidKey);
         }
+        let data = (0..self.element_size)
+            .map(|i| self.data[key.index * self.element_size + i])
+            .collect();
+        Ok(ctor(data))
     }
     pub fn insert<Data: InsertableDyn>(&mut self, data: Data) -> Key {
-        let mut block_num = 0;
-        for block_lock in self.data.iter() {
-            let mut min_index = None;
-            if let Some(block) = block_lock.read().ok() {
-                min_index = block.get_first_free();
+        if let Some(index) = self.bitmap.get_first_free() {
+            self.bitmap.set(index, true);
+            let bytes = data.to_binary();
+            for i in 0..self.element_size {
+                self.data[index * self.element_size + i] = bytes[i];
             }
-            if let Some(index) = min_index {
-                if let Some(mut block) = block_lock.write().ok() {
-                    block.write_index(index, data);
-                    return Key {
-                        index: index as usize + block_num * Self::BLOCK_SIZE as usize,
-                    };
-                }
-            }
-            block_num += 1;
+            return Key { index };
         }
-        //all blocks are used make a new one
-        self.data.push(RwLock::new(Block::new::<Data>(
-            Self::BLOCK_SIZE,
-            data.size(),
-        )));
-        if let Some(mut block) = self.data[self.data.len() - 1].write().ok() {
-            block.write_index(0, data);
+        let bytes = data.to_binary();
+
+        self.data.resize(self.data.len() + self.element_size);
+        self.bitmap.resize(self.bitmap.len() + 1);
+
+        let len = self.data.len();
+        for i in 0..self.element_size {
+            self.data[(len - 1) / self.element_size + i] = bytes[i];
         }
-        return Key {
-            index: (self.data.len() - 1) * Self::BLOCK_SIZE as usize,
-        };
-    }
-}
-struct Block {
-    data: Vec<u8>,
-    bitmap: Bitmap,
-    data_size: u32,
-}
-impl Block {
-    fn new<Data: InsertableDyn>(block_size: u32, data_size: u32) -> Self {
-        Block {
-            data: vec![0; (block_size as usize) * data_size as usize],
-            bitmap: Bitmap::new(block_size),
-            data_size,
-        }
-    }
-    fn get_data<Data: InsertableDyn>(&self, index: u32, ctor: fn(Vec<u8>) -> Data) -> Option<Data> {
-        if self.bitmap.get(index) {
-            let buffer: Vec<u8> = self.data
-                [(index * self.data_size) as usize..((index + 1) * self.data_size) as usize]
-                .to_vec();
-            Some(ctor(buffer))
-        } else {
-            None
-        }
-    }
-    fn write_index<Data: InsertableDyn>(&mut self, index: u32, data: Data) {
-        let buffer = data.to_binary();
-        for i in (index * self.data_size)..((index + 1) * self.data_size) {
-            self.data[i as usize] = buffer[(i - index * self.data_size) as usize];
-        }
+        let index = (self.data.len() - 1) / self.element_size;
         self.bitmap.set(index, true);
-    }
-    fn get_first_free(&self) -> Option<u32> {
-        self.bitmap.get_first_free()
+        return Key { index };
     }
 }
 struct Bitmap {
     data: Vec<u64>,
+    len: usize,
 }
 impl Bitmap {
-    const INT_SIZE: u32 = 64;
-    pub fn new(size: u32) -> Self {
-        let m = size % Self::INT_SIZE;
-        let mut alloc_size = size / Self::INT_SIZE;
+    const INT_SIZE: usize = 64;
+    pub fn new(len: usize) -> Self {
+        let m = len % Self::INT_SIZE;
+        let mut alloc_size = len / Self::INT_SIZE;
         if m != 0 {
             alloc_size += 1;
         }
         Bitmap {
             data: vec![0; alloc_size as usize],
+            len,
         }
     }
     #[allow(dead_code)]
-    pub fn get(&self, index: u32) -> bool {
-        let byte = self.data[index as usize / Self::INT_SIZE as usize];
+    pub fn get(&self, index: usize) -> bool {
+        if index >= self.len {
+            panic!("out of bounds")
+        }
+        let byte = self.data[index / Self::INT_SIZE as usize];
         let bit = (byte >> (index % Self::INT_SIZE)) & 0x1;
         if bit == 0 {
             return false;
@@ -133,13 +102,13 @@ impl Bitmap {
             return true;
         }
     }
-    pub fn get_first_free(&self) -> Option<u32> {
+    pub fn get_first_free(&self) -> Option<usize> {
         let mut index = 0;
         for i in self.data.iter() {
             if i != &u64::MAX {
                 for j in 0..Self::INT_SIZE {
                     if !i & (1 << j as u64) == (1 << j as u64) {
-                        return Some(index as u32 * Self::INT_SIZE + j as u32);
+                        return Some(index * Self::INT_SIZE + j);
                     }
                 }
             }
@@ -147,7 +116,7 @@ impl Bitmap {
         }
         return None;
     }
-    pub fn set(&mut self, index: u32, state: bool) {
+    pub fn set(&mut self, index: usize, state: bool) {
         if state == true {
             let set = 1 << index % Self::INT_SIZE;
             self.data[index as usize / Self::INT_SIZE as usize] =
@@ -157,6 +126,20 @@ impl Bitmap {
             self.data[index as usize / Self::INT_SIZE as usize] =
                 self.data[index as usize / Self::INT_SIZE as usize] & set;
         }
+    }
+    pub fn len(&self) -> usize {
+        self.len
+    }
+    pub fn resize(&mut self, new_size: usize) {
+        let new_len = {
+            let modulo = new_size & Self::INT_SIZE;
+            if modulo != 0 {
+                new_size / Self::INT_SIZE + 1
+            } else {
+                new_size / Self::INT_SIZE
+            }
+        };
+        self.data.resize_with(new_len, || 0);
     }
 }
 unsafe impl InsertableDyn for Key {
