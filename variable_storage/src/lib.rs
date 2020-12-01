@@ -309,6 +309,7 @@ impl<ExtentT: Extent> VariableExtent<ExtentT> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use traits::InMemoryExtent;
     #[test]
     fn create_extent() {
         let _ = VariableExtent::new(InMemoryExtent::new());

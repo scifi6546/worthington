@@ -1,6 +1,7 @@
 use table::DatabaseTable;
+use traits::InMemoryExtent;
 fn main() {
-    let mut t: DatabaseTable = DatabaseTable::new();
+    let mut t = DatabaseTable::new(InMemoryExtent::new(), 4);
     let mut v = vec![];
     for i in 0..1_000_000 {
         v.push((t.insert(i as u32), i));

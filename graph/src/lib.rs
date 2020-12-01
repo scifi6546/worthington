@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 use table::{DatabaseTable, Key as TableKey};
-use traits::{Insertable, InsertableDyn, Node, NodeElementHash, NodeHash, VariableSizeInsert};
+use traits::{
+    InMemoryExtent, Insertable, InsertableDyn, Node, NodeElementHash, NodeHash, VariableSizeInsert,
+};
 pub mod prelude {
     pub use traits::{
         Insertable, InsertableDyn, Node, NodeElementHash, NodeHash, VariableSizeInsert,
     };
 }
-use variable_storage::{InMemoryExtent, Key as VariableKey, VariableExtent};
+use variable_storage::{Key as VariableKey, VariableExtent};
 #[derive(Clone)]
 pub struct Key {
     key: VariableKey,
@@ -165,10 +167,10 @@ pub struct Database {
     //Listing of all node elements keys
     node_storage: VariableExtent<InMemoryExtent>,
     //Listing of location of data members of node
-    node_contents: HashMap<NodeHash, DatabaseTable>,
+    node_contents: HashMap<NodeHash, DatabaseTable<InMemoryExtent>>,
     //For elements with a variable size
     variable: HashMap<NodeElementHash, VariableExtent<InMemoryExtent>>,
-    sized: HashMap<NodeElementHash, DatabaseTable>, //For elements with a fixed size
+    sized: HashMap<NodeElementHash, DatabaseTable<InMemoryExtent>>, //For elements with a fixed size
 }
 impl Database {
     pub fn new() -> Self {
@@ -192,7 +194,10 @@ impl Database {
                     )
                 } else {
                     //add hash
-                    self.sized.insert(hash.clone(), DatabaseTable::new());
+                    self.sized.insert(
+                        hash.clone(),
+                        DatabaseTable::new(InMemoryExtent::new(), data.size() as usize),
+                    );
                     (hash.clone(), self.sized.get_mut(hash).unwrap().insert(data))
                 }
             })
@@ -226,8 +231,10 @@ impl Database {
             node_dynamic_sized_keys,
         };
         if !self.node_contents.contains_key(&Data::SELF_HASH) {
-            self.node_contents
-                .insert(Data::SELF_HASH, DatabaseTable::new());
+            self.node_contents.insert(
+                Data::SELF_HASH,
+                DatabaseTable::new(InMemoryExtent::new(), node.size() as usize),
+            );
         }
         let key = self
             .node_contents
