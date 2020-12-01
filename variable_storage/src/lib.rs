@@ -306,39 +306,6 @@ impl<ExtentT: Extent> VariableExtent<ExtentT> {
         true
     }
 }
-pub struct InMemoryExtent {
-    data: Vec<u8>,
-}
-impl InMemoryExtent {
-    pub fn new() -> Self {
-        InMemoryExtent { data: vec![] }
-    }
-}
-impl Index<usize> for InMemoryExtent {
-    type Output = u8;
-    fn index(&self, idx: usize) -> &Self::Output {
-        if idx >= self.data.len() {
-            panic!("index out of bounds")
-        }
-        &self.data[idx]
-    }
-}
-impl IndexMut<usize> for InMemoryExtent {
-    fn index_mut(&mut self, idx: usize) -> &mut Self::Output {
-        if idx >= self.data.len() {
-            panic!("index mut out of bounds")
-        }
-        &mut self.data[idx]
-    }
-}
-impl Extent for InMemoryExtent {
-    fn resize(&mut self, new_size: usize) {
-        self.data.resize(new_size, 0)
-    }
-    fn len(&self) -> usize {
-        self.data.len()
-    }
-}
 #[cfg(test)]
 mod tests {
     use super::*;

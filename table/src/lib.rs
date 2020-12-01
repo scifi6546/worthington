@@ -1,4 +1,3 @@
-use std::sync::RwLock;
 use traits::{Extent, Insertable, InsertableDyn};
 pub struct DatabaseTable<Store: Extent> {
     bitmap: Bitmap,
@@ -24,7 +23,6 @@ pub enum TableError {
     KeyNotUsed,
 }
 impl<Store: Extent> DatabaseTable<Store> {
-    const BLOCK_SIZE: u32 = 0x1000;
     pub fn new(data: Store, element_size: usize) -> Self {
         let bitmap = Bitmap::new(0);
         Self {
