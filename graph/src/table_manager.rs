@@ -33,23 +33,28 @@ impl InMemoryManager {
 impl TableManager for InMemoryManager {
     type ExtentType = InMemoryExtent;
     fn get(&mut self) -> TableStartup<Self::ExtentType> {
-        todo!()
+        TableStartup {
+            node_storage: VariableExtent::new(InMemoryExtent::new()),
+            node_contents: HashMap::new(),
+            variable: HashMap::new(),
+            sized: HashMap::new(),
+        }
     }
     fn get_node_contents(
         &mut self,
         hash: NodeHash,
         data_size: usize,
     ) -> DatabaseTable<Self::ExtentType> {
-        todo!()
+        DatabaseTable::new(InMemoryExtent::new(), data_size)
     }
     fn get_sized(
         &mut self,
         hash: NodeElementHash,
         data_size: usize,
     ) -> DatabaseTable<Self::ExtentType> {
-        todo!()
+        DatabaseTable::new(InMemoryExtent::new(), data_size)
     }
     fn get_variable(&mut self, hash: NodeElementHash) -> VariableExtent<Self::ExtentType> {
-        todo!()
+        VariableExtent::new(InMemoryExtent::new())
     }
 }
