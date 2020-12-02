@@ -21,23 +21,23 @@ struct Person {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use graph::Database;
+    use graph::{in_memory_db, Database};
     #[test]
     fn it_works() {
-        let mut db = Database::new();
+        let mut db = in_memory_db();
         let e = db.insert(Empty {});
         assert_eq!(db.get::<Empty>(e).unwrap(), Empty {});
     }
     #[test]
     fn sized_only() {
-        let mut db = Database::new();
+        let mut db = in_memory_db();
         let s = SizedOnly { age: 1 };
         let k = db.insert(s.clone());
         assert_eq!(db.get::<SizedOnly>(k).unwrap(), s);
     }
     #[test]
     fn insert_string() {
-        let mut db = Database::new();
+        let mut db = in_memory_db();
         let e = db.insert(S {
             name: "bar".to_string(),
         });
@@ -50,7 +50,7 @@ mod tests {
     }
     #[test]
     fn insert_person() {
-        let mut db = Database::new();
+        let mut db = in_memory_db();
         let p_obj = Person {
             name: "Bill".to_string(),
             age: 5,

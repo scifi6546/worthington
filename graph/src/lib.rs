@@ -1,5 +1,7 @@
+mod table_manager;
 use std::collections::HashMap;
 use table::{DatabaseTable, Key as TableKey};
+use table_manager::{InMemoryManager, TableManager};
 use traits::{
     InMemoryExtent, Insertable, InsertableDyn, Node, NodeElementHash, NodeHash, VariableSizeInsert,
 };
@@ -163,22 +165,25 @@ impl NodeStorage {
 pub enum DatabseError {
     InvalidKey(Key),
 }
-pub struct Database {
+pub struct Database<Manager: TableManager> {
+    table_manager: Manager,
     //Listing of all node elements keys
-    node_storage: VariableExtent<InMemoryExtent>,
+    node_storage: VariableExtent<Manager::ExtentType>,
     //Listing of location of data members of node
-    node_contents: HashMap<NodeHash, DatabaseTable<InMemoryExtent>>,
+    node_contents: HashMap<NodeHash, DatabaseTable<Manager::ExtentType>>,
     //For elements with a variable size
-    variable: HashMap<NodeElementHash, VariableExtent<InMemoryExtent>>,
-    sized: HashMap<NodeElementHash, DatabaseTable<InMemoryExtent>>, //For elements with a fixed size
+    variable: HashMap<NodeElementHash, VariableExtent<Manager::ExtentType>>,
+    sized: HashMap<NodeElementHash, DatabaseTable<Manager::ExtentType>>, //For elements with a fixed size
 }
-impl Database {
-    pub fn new() -> Self {
+impl<Manager: TableManager> Database<Manager> {
+    pub fn new(mut table_manager: Manager) -> Self {
+        let startup = table_manager.get();
         Self {
-            node_storage: VariableExtent::new(InMemoryExtent::new()),
-            node_contents: HashMap::new(),
-            variable: HashMap::new(),
-            sized: HashMap::new(),
+            table_manager,
+            node_storage: startup.node_storage,
+            node_contents: startup.node_contents,
+            variable: startup.variable,
+            sized: startup.sized,
         }
     }
     pub fn insert<Data: Node>(&mut self, data: Data) -> Key {
@@ -196,7 +201,8 @@ impl Database {
                     //add hash
                     self.sized.insert(
                         hash.clone(),
-                        DatabaseTable::new(InMemoryExtent::new(), data.size() as usize),
+                        self.table_manager
+                            .get_sized(hash.clone(), data.size() as usize),
                     );
                     (hash.clone(), self.sized.get_mut(hash).unwrap().insert(data))
                 }
@@ -215,7 +221,7 @@ impl Database {
                     )
                 } else {
                     self.variable
-                        .insert(hash.clone(), VariableExtent::new(InMemoryExtent::new()));
+                        .insert(hash.clone(), self.table_manager.get_variable(hash.clone()));
                     (
                         hash.clone(),
                         self.variable
@@ -233,7 +239,8 @@ impl Database {
         if !self.node_contents.contains_key(&Data::SELF_HASH) {
             self.node_contents.insert(
                 Data::SELF_HASH,
-                DatabaseTable::new(InMemoryExtent::new(), node.size() as usize),
+                self.table_manager
+                    .get_node_contents(Data::SELF_HASH, node.size() as usize),
             );
         }
         let key = self
@@ -298,6 +305,9 @@ impl Database {
             .collect();
         Some(Data::from_data(sized, variable))
     }
+}
+pub fn in_memory_db() -> Database<InMemoryManager> {
+    Database::new(InMemoryManager::new())
 }
 #[cfg(test)]
 mod test {
