@@ -8,6 +8,7 @@ members = [
     "macro_use",
     "traits",
     "tests",
+    "file_extent",
 ]
 [profile.release]
 debug=true

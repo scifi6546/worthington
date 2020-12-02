@@ -28,7 +28,7 @@ impl VariableSizeInsert for String {
 pub trait Extent: Index<usize, Output = u8> + IndexMut<usize, Output = u8> {
     /// Resizes extent. If extent is grown no garuentees are made about the contents of the new
     /// data
-    fn resize(&mut self, new_size: usize);
+    fn resize(&mut self, new_size: usize) -> anyhow::Result<()>;
     /// Gets the number of availible bytes
     fn len(&self) -> usize;
 }
@@ -58,8 +58,9 @@ impl IndexMut<usize> for InMemoryExtent {
     }
 }
 impl Extent for InMemoryExtent {
-    fn resize(&mut self, new_size: usize) {
-        self.data.resize(new_size, 0)
+    fn resize(&mut self, new_size: usize) -> anyhow::Result<()> {
+        self.data.resize(new_size, 0);
+        Ok(())
     }
     fn len(&self) -> usize {
         self.data.len()

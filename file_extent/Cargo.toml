@@ -1,5 +1,5 @@
 [package]
-name = "traits"
+name = "file_extent"
 version = "0.1.0"
 authors = ["Nick Alexeev <nickalexeev@protonmail.com>"]
 edition = "2018"
@@ -7,8 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dyn-clone="1.0.3"
-dyn-clonable="0.9.0"
-macro_lib={path="../macro_lib"}
+libc = "0.2.80"
 anyhow = "1.0.34"
 thiserror="1.0.22"
+traits={path="../traits"}
