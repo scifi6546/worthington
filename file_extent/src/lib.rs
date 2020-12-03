@@ -2,9 +2,10 @@
 extern crate anyhow;
 use anyhow::Result;
 use libc::{
-    __errno_location, c_void, close, mmap, mremap, munmap, open, strerror, MREMAP_MAYMOVE, O_RDWR,
-    PROT_READ, PROT_WRITE,
+    __errno_location, c_void, close, mmap, mremap, munmap, open, strerror, MAP_FAILED, MAP_SHARED,
+    MREMAP_MAYMOVE, O_RDWR, PROT_READ, PROT_WRITE,
 };
+use std::cmp::max;
 use std::fs::File;
 use std::ops::{Index, IndexMut};
 use std::path::Path;
@@ -37,20 +38,21 @@ impl FileExtent {
         .len() as usize;
 
         let fd = unsafe { open(path.to_str().unwrap().as_ptr() as *const i8, O_RDWR) };
-        if fd <= 0 {
+        if fd == -1 {
             return Err(anyhow!("open call failed: {}", FileExtentError::OpenFailed));
         }
+
         let file_map: *mut c_void = unsafe {
             mmap(
                 0 as *mut c_void,
-                file_size,
+                max(file_size, 1),
                 PROT_READ | PROT_WRITE,
-                O_RDWR,
+                MAP_SHARED,
                 fd,
                 0,
             )
         };
-        if file_map == (-1 as i64) as *mut c_void {
+        if file_map == MAP_FAILED {
             return Err(anyhow!(
                 "mmap failed: {}",
                 FileExtentError::MmapFailed {
@@ -153,7 +155,7 @@ mod tests {
         test("write".to_string(), |p| {
             let mut f = FileExtent::new(p)?;
             f.resize(1000)?;
-            assert_eq!(f.len(), 100);
+            assert_eq!(f.len(), 1000);
             let v: Vec<u8> = (0..1000).map(|i: i32| i.to_le_bytes()[0]).collect();
             for i in 0..1000 {
                 f[i] = v[i];
