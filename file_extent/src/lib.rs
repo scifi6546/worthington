@@ -6,7 +6,8 @@ use libc::{
     MAP_SHARED, MREMAP_MAYMOVE, O_APPEND, O_RDWR, PROT_READ, PROT_WRITE,
 };
 use std::cmp::max;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
+use std::io::Write;
 use std::ops::{Index, IndexMut};
 use std::path::Path;
 use thiserror::Error;
@@ -15,8 +16,8 @@ use traits::Extent;
 enum FileExtentError {
     #[error("mmap failed: {errno}")]
     MmapFailed { errno: i32 },
-    #[error("open call failed")]
-    OpenFailed,
+    #[error("open call failed errno: {errno}")]
+    OpenFailed { errno: i32 },
     #[error("unmap failed: {errno}")]
     UnMapFailed { errno: i32 },
     #[error("remap failed: {errno}")]
@@ -53,7 +54,11 @@ impl FileExtent {
 
         let fd = unsafe { open((&path).to_str().unwrap().as_ptr() as *const i8, O_RDWR) };
         if fd == -1 {
-            return Err(anyhow!("open call failed: {}", FileExtentError::OpenFailed));
+            let errno = unsafe { *__errno_location() };
+            return Err(anyhow!(
+                "open call failed: {}",
+                FileExtentError::OpenFailed { errno }
+            ));
         }
 
         let file_map: *mut c_void = unsafe {
@@ -108,31 +113,17 @@ impl Extent for FileExtent {
                         FileExtentError::UnMapFailed { errno }
                     ));
                 }
-
-                let fd = open(self.path_string.as_str().as_ptr() as *const i8, O_APPEND);
-                if fd == -1 {
-                    return Err(anyhow!("open call failed: {}", FileExtentError::OpenFailed));
-                }
-                let write_size = new_size - self.file_size;
-                let buff: Vec<u8> = vec![0; write_size];
-                let size_written = write(fd, buff.as_ptr() as *const c_void, write_size);
-                if size_written != write_size as isize {
-                    let errno = *__errno_location();
-                    return Err(anyhow!(
-                        "append failed: {}",
-                        FileExtentError::WriteFailed {
-                            errno,
-                            fd,
-                            write_size,
-                            size_written,
-                            path_string: self.path_string.clone()
-                        }
-                    ));
-                }
-                close(fd);
+                OpenOptions::new()
+                    .append(true)
+                    .open(self.path_string.clone())?
+                    .write_all(&mut vec![0; new_size - self.file_size])?;
                 let fd = open(self.path_string.as_str().as_ptr() as *const i8, O_RDWR);
                 if fd == -1 {
-                    return Err(anyhow!("open call failed: {}", FileExtentError::OpenFailed));
+                    let errno = *__errno_location();
+                    return Err(anyhow!(
+                        "open call failed: {}",
+                        FileExtentError::OpenFailed { errno }
+                    ));
                 }
 
                 let file_map: *mut c_void = mmap(
@@ -152,6 +143,7 @@ impl Extent for FileExtent {
                     ));
                 }
                 close(fd);
+                self.file_map = file_map;
             }
         }
         let new_map = unsafe { mremap(self.file_map, self.file_size, new_size, MREMAP_MAYMOVE) };
