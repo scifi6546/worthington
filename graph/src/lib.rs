@@ -1,3 +1,5 @@
+#[macro_use]
+extern crate anyhow;
 mod table_manager;
 use std::collections::HashMap;
 use table::{DatabaseTable, Key as TableKey};

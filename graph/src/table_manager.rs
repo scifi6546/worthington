@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use table::DatabaseTable;
 use traits::{Extent, InMemoryExtent, NodeElementHash, NodeHash};
+mod backed;
+use anyhow::Result;
 use variable_storage::VariableExtent;
 pub struct TableStartup<E: Extent> {
     pub node_storage: VariableExtent<E>,
@@ -10,7 +12,7 @@ pub struct TableStartup<E: Extent> {
 }
 pub trait TableManager {
     type ExtentType: Extent;
-    fn get(&mut self) -> TableStartup<Self::ExtentType>;
+    fn get(&mut self) -> Result<TableStartup<Self::ExtentType>>;
     fn get_node_contents(
         &mut self,
         hash: NodeHash,
@@ -32,13 +34,13 @@ impl InMemoryManager {
 }
 impl TableManager for InMemoryManager {
     type ExtentType = InMemoryExtent;
-    fn get(&mut self) -> TableStartup<Self::ExtentType> {
-        TableStartup {
+    fn get(&mut self) -> Result<TableStartup<Self::ExtentType>> {
+        Ok(TableStartup {
             node_storage: VariableExtent::new(InMemoryExtent::new()),
             node_contents: HashMap::new(),
             variable: HashMap::new(),
             sized: HashMap::new(),
-        }
+        })
     }
     fn get_node_contents(
         &mut self,

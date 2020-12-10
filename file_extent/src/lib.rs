@@ -2,8 +2,8 @@
 extern crate anyhow;
 use anyhow::Result;
 use libc::{
-    __errno_location, c_void, close, mmap, mremap, munmap, open, strerror, write, MAP_FAILED,
-    MAP_SHARED, MREMAP_MAYMOVE, O_APPEND, O_RDWR, PROT_READ, PROT_WRITE,
+    __errno_location, c_void, close, mmap, mremap, munmap, open, MAP_FAILED, MAP_SHARED,
+    MREMAP_MAYMOVE, O_RDWR, PROT_READ, PROT_WRITE,
 };
 use std::cmp::max;
 use std::fs::{File, OpenOptions};
@@ -22,14 +22,6 @@ enum FileExtentError {
     UnMapFailed { errno: i32 },
     #[error("remap failed: {errno}")]
     RemapFailed { errno: i32 },
-    #[error("write failed: {errno} for file: {path_string}, fd: {fd}, {size_written} written out of {write_size} bytes")]
-    WriteFailed {
-        errno: i32,
-        fd: i32,
-        write_size: usize,
-        size_written: isize,
-        path_string: String,
-    },
     #[error("close failed for fd: {fd}, errno: {errno}")]
     CloseFailed { errno: i32, fd: i32 },
 }
@@ -40,6 +32,8 @@ pub struct FileExtent {
     path_string: String,
 }
 impl FileExtent {
+    /// if path exists loads existing file. If it does not then file is created.
+    /// Preconditions: path_string points to a regular file, and is readable and writable.
     pub fn new(path_string: String) -> Result<Self> {
         let path = Path::new(&path_string);
         let file_size = {
@@ -249,6 +243,33 @@ mod tests {
             for i in 0..1000 {
                 assert_eq!(f[i], v[i]);
             }
+            Ok(())
+        });
+    }
+    #[test]
+    fn reload_from_disk() {
+        test("reload_from_disk".to_string(), |p| {
+            let v: Vec<u8> = (0..1000).map(|i: i32| i.to_le_bytes()[0]).collect();
+            {
+                let mut f = FileExtent::new(p.clone())?;
+                f.resize(1000)?;
+                assert_eq!(f.len(), 1000);
+                for i in 0..1000 {
+                    f[i] = v[i];
+                }
+                for i in 0..1000 {
+                    assert_eq!(f[i], v[i]);
+                }
+            }
+            {
+                let mut f = FileExtent::new(p)?;
+                assert_eq!(f.len(), 1000);
+                let v: Vec<u8> = (0..1000).map(|i: i32| i.to_le_bytes()[0]).collect();
+                for i in 0..1000 {
+                    assert_eq!(f[i], v[i]);
+                }
+            }
+
             Ok(())
         });
     }
