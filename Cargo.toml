@@ -9,6 +9,7 @@ members = [
     "traits",
     "tests",
     "file_extent",
+    "file_table",
 ]
 [profile.release]
 debug=true

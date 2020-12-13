@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate anyhow;
+use anyhow::Result;
 mod table_manager;
 use std::collections::HashMap;
 use table::{DatabaseTable, Key as TableKey};
@@ -178,15 +179,15 @@ pub struct Database<Manager: TableManager> {
     sized: HashMap<NodeElementHash, DatabaseTable<Manager::ExtentType>>, //For elements with a fixed size
 }
 impl<Manager: TableManager> Database<Manager> {
-    pub fn new(mut table_manager: Manager) -> Self {
-        let startup = table_manager.get();
-        Self {
+    pub fn new(mut table_manager: Manager) -> Result<Self> {
+        let startup = table_manager.get()?;
+        Ok(Self {
             table_manager,
             node_storage: startup.node_storage,
             node_contents: startup.node_contents,
             variable: startup.variable,
             sized: startup.sized,
-        }
+        })
     }
     pub fn insert<Data: Node>(&mut self, data: Data) -> Key {
         let (sized_data_vec, unsized_data_vec) = data.get_data();
@@ -197,7 +198,9 @@ impl<Manager: TableManager> Database<Manager> {
                     (
                         hash.clone(),
                         (self.sized.get_mut(hash).unwrap())
-                            .insert::<Box<dyn InsertableDyn>>(data.clone()),
+                            .insert::<Box<dyn InsertableDyn>>(data.clone())
+                            .ok()
+                            .unwrap(),
                     )
                 } else {
                     //add hash
@@ -206,7 +209,10 @@ impl<Manager: TableManager> Database<Manager> {
                         self.table_manager
                             .get_sized(hash.clone(), data.size() as usize),
                     );
-                    (hash.clone(), self.sized.get_mut(hash).unwrap().insert(data))
+                    (
+                        hash.clone(),
+                        self.sized.get_mut(hash).unwrap().insert(data).ok().unwrap(),
+                    )
                 }
             })
             .collect();
@@ -251,7 +257,7 @@ impl<Manager: TableManager> Database<Manager> {
             .unwrap()
             .insert(node);
         let node_keys = NodeKeyStorage {
-            self_members: key,
+            self_members: key.ok().unwrap(),
             self_hash: Data::SELF_HASH,
             //Links
             linked_nodes: vec![],
@@ -308,8 +314,9 @@ impl<Manager: TableManager> Database<Manager> {
         Some(Data::from_data(sized, variable))
     }
 }
+/// Should never fail
 pub fn in_memory_db() -> Database<InMemoryManager> {
-    Database::new(InMemoryManager::new())
+    Database::new(InMemoryManager::new()).ok().unwrap()
 }
 #[cfg(test)]
 mod test {

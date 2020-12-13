@@ -1,3 +1,4 @@
+use anyhow::Result;
 use traits::{Extent, Insertable, InsertableDyn};
 pub struct DatabaseTable<Store: Extent> {
     bitmap: Bitmap,
@@ -47,18 +48,18 @@ impl<Store: Extent> DatabaseTable<Store> {
             .collect();
         Ok(ctor(data))
     }
-    pub fn insert<Data: InsertableDyn>(&mut self, data: Data) -> Key {
+    pub fn insert<Data: InsertableDyn>(&mut self, data: Data) -> Result<Key> {
         if let Some(index) = self.bitmap.get_first_free() {
             self.bitmap.set(index, true);
             let bytes = data.to_binary();
             for i in 0..self.element_size {
                 self.data[index * self.element_size + i] = bytes[i];
             }
-            return Key { index };
+            return Ok(Key { index });
         }
         let bytes = data.to_binary();
 
-        self.data.resize(self.data.len() + self.element_size);
+        self.data.resize(self.data.len() + self.element_size)?;
         self.bitmap.resize(self.bitmap.len() + 1);
 
         let len = self.bitmap.len();
@@ -67,7 +68,7 @@ impl<Store: Extent> DatabaseTable<Store> {
         }
         let index = len - 1;
         self.bitmap.set(index, true);
-        return Key { index };
+        Ok(Key { index })
     }
 }
 struct Bitmap {
@@ -184,14 +185,14 @@ mod tests {
     #[test]
     fn insert_and_get_single() {
         let mut db = DatabaseTable::new(InMemoryExtent::new(), std::mem::size_of::<u32>());
-        let k1 = db.insert::<u32>(1);
+        let k1 = db.insert::<u32>(1).ok().unwrap();
         assert_eq!(db.get::<u32>(k1, from_binary).ok().unwrap(), 1);
     }
     #[test]
     fn insert_and_get() {
         let mut db = DatabaseTable::new(InMemoryExtent::new(), std::mem::size_of::<u32>());
-        let k1 = db.insert::<u32>(1);
-        let k2 = db.insert::<u32>(2);
+        let k1 = db.insert::<u32>(1).ok().unwrap();
+        let k2 = db.insert::<u32>(2).ok().unwrap();
         assert_eq!(db.get::<u32>(k1, from_binary).ok().unwrap(), 1);
         assert_eq!(db.get::<u32>(k2, from_binary).ok().unwrap(), 2);
     }
@@ -200,7 +201,7 @@ mod tests {
         let mut db = DatabaseTable::new(InMemoryExtent::new(), std::mem::size_of::<u32>());
         let mut keys = vec![];
         for i in 0..100 {
-            keys.push((db.insert::<u32>(i), i));
+            keys.push((db.insert::<u32>(i).ok().unwrap(), i));
         }
         for (key, value) in keys.iter() {
             assert_eq!(

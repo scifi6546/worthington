@@ -1,7 +1,6 @@
 #[macro_use]
 extern crate macro_lib;
 use std::ops::{Index, IndexMut};
-
 mod insertable_impl;
 mod node_base;
 use dyn_clonable::*;
@@ -64,6 +63,42 @@ impl Extent for InMemoryExtent {
     }
     fn len(&self) -> usize {
         self.data.len()
+    }
+}
+///# Extent that allows contents to be read after it is sent to table
+///To be used only for testing
+///## Preconditions
+///do not call drop on extent before all `DainableExtents` that use the extent i:3w
+pub struct DrianableExtent {
+    extent: *mut InMemoryExtent,
+}
+impl DrianableExtent {
+    pub fn new(extent: *mut InMemoryExtent) -> Self {
+        Self { extent }
+    }
+    pub fn take(&mut self) -> DrianableExtent {
+        DrianableExtent {
+            extent: self.extent,
+        }
+    }
+}
+impl Index<usize> for DrianableExtent {
+    type Output = u8;
+    fn index(&self, idx: usize) -> &Self::Output {
+        unsafe { (*self.extent).index(idx) }
+    }
+}
+impl IndexMut<usize> for DrianableExtent {
+    fn index_mut(&mut self, idx: usize) -> &mut Self::Output {
+        unsafe { (*self.extent).index_mut(idx) }
+    }
+}
+impl Extent for DrianableExtent {
+    fn resize(&mut self, new_size: usize) -> anyhow::Result<()> {
+        unsafe { (*self.extent).resize(new_size) }
+    }
+    fn len(&self) -> usize {
+        unsafe { (*self.extent).len() }
     }
 }
 #[cfg(test)]

@@ -44,12 +44,6 @@ unsafe impl InsertableDyn for &Box<dyn InsertableDyn> {
         (&***self).to_binary()
     }
 }
-unsafe impl Insertable for usize {
-    const SIZE: usize = 8;
-    fn from_binary(d: Vec<u8>) -> Self {
-        usize::from_le_bytes([d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]])
-    }
-}
 unsafe impl Insertable for f32 {
     const SIZE: usize = 4;
     fn from_binary(d: Vec<u8>) -> Self {
@@ -77,5 +71,19 @@ unsafe impl InsertableDyn for u64 {
     }
     fn to_binary(&self) -> Vec<u8> {
         self.to_le_bytes().to_vec()
+    }
+}
+unsafe impl InsertableDyn for usize {
+    fn size(&self) -> u32 {
+        8
+    }
+    fn to_binary(&self) -> Vec<u8> {
+        self.to_le_bytes().to_vec()
+    }
+}
+unsafe impl Insertable for usize {
+    const SIZE: usize = 8;
+    fn from_binary(d: Vec<u8>) -> Self {
+        usize::from_le_bytes([d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]])
     }
 }
