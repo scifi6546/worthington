@@ -70,22 +70,24 @@ impl<E: Extent> SizedTable<E> {
             if let Some(index) = get_first_0(self.load_bitmap(i)) {
                 let start = index * self.data_size
                     + i * (Self::BLOCK_SIZE * self.data_size + Self::BITMAP_SIZE)
-                    + Self::BITMAP_SIZE;
+                    + Self::BITMAP_SIZE
+                    + Self::HEADER_SIZE;
                 let buffer = data.to_binary();
                 for i in 0..self.data_size {
                     self.extent[i + start] = buffer[i];
                 }
                 let bitmap_location = i * (Self::BLOCK_SIZE * self.data_size + Self::BITMAP_SIZE)
-                    + Self::BITMAP_SIZE
+                    + Self::HEADER_SIZE
                     + index / 8;
-                self.extent[bitmap_location] | 1 << (index % 8);
+
+                self.extent[bitmap_location] = self.extent[bitmap_location] | 1 << (index % 8);
                 return Ok(Key { index });
             }
         }
         let old_len = self.extent.len();
         let new_index = self.get_number_blocks() * Self::BLOCK_SIZE;
         self.extent
-            .resize(old_len + Self::BITMAP_SIZE + Self::BLOCK_SIZE * self.data_size);
+            .resize(old_len + Self::BITMAP_SIZE + Self::BLOCK_SIZE * self.data_size)?;
         for i in old_len..old_len + Self::BITMAP_SIZE {
             self.extent[i] = 0;
         }
@@ -103,14 +105,14 @@ impl<E: Extent> SizedTable<E> {
             Err(anyhow!("{}", TableError::KeyOutOfRange))
         } else {
             let block_number = key.index / Self::BLOCK_SIZE;
-            let bitmap = self.load_bitmap(block_number)[key.index % Self::BLOCK_SIZE];
+            let bitmap = self.load_bitmap(block_number)[(key.index % Self::BLOCK_SIZE) / 8];
             let index_in_bitmap = (key.index % Self::BLOCK_SIZE) % 8;
             let bit = bitmap & (0x1 << index_in_bitmap) >> index_in_bitmap;
             if bit == 0 {
                 return Err(anyhow!("{}", TableError::KeyUnused { key }));
             }
             let block = self.load_block(block_number);
-            let start_index = key.index % (Self::BLOCK_SIZE * self.data_size);
+            let start_index = (key.index % (Self::BLOCK_SIZE)) * self.data_size;
             let data = (start_index..start_index + self.data_size)
                 .map(|i| block[i])
                 .collect();
@@ -139,7 +141,18 @@ impl<E: Extent> SizedTable<E> {
 }
 //gets first 0 in bitmap if it exists
 fn get_first_0(bitmap: Vec<u8>) -> Option<usize> {
-    todo!()
+    let mut index = 0;
+    for byte in bitmap.iter() {
+        if byte.clone() != u8::MAX {
+            for i in 0..8 {
+                if byte & (1 << i) != (1 << i) {
+                    return Some(index * 8 + i);
+                }
+            }
+        }
+        index += 1;
+    }
+    None
 }
 #[cfg(test)]
 mod tests {
@@ -153,6 +166,45 @@ mod tests {
         let mut t = SizedTable::new(drain, 0usize.size() as usize).ok().unwrap();
         let k = t.insert(Box::new(0usize)).ok().unwrap();
         assert_eq!(t.get(k, usize::from_binary).ok().unwrap(), 0);
+    }
+    #[test]
+    fn two_inserts() {
+        let mut e = InMemoryExtent::new();
+        let drain = DrianableExtent::new(&mut e);
+        let mut t = SizedTable::new(drain, 0usize.size() as usize).ok().unwrap();
+        let k = t.insert(Box::new(0usize)).ok().unwrap();
+        assert_eq!(k.index, 0);
+        assert_eq!(t.get(k.clone(), usize::from_binary).ok().unwrap(), 0);
+        let k2 = t.insert(Box::new(1usize)).ok().unwrap();
+        assert_eq!(k2.index, 1);
+
+        assert_eq!(t.get(k, usize::from_binary).ok().unwrap(), 0);
+        assert_eq!(t.get(k2.clone(), usize::from_binary).ok().unwrap(), 1);
+    }
+    #[test]
+    fn test_bitmap_one() {
+        let arr = vec![0];
+        assert_eq!(get_first_0(arr), Some(0));
+    }
+    #[test]
+    fn test_bitmap_two() {
+        let arr = vec![0b01];
+        assert_eq!(get_first_0(arr), Some(1));
+    }
+    #[test]
+    fn couple_inserts() {
+        let mut e = InMemoryExtent::new();
+        let drain = DrianableExtent::new(&mut e);
+        let mut t = SizedTable::new(drain, 0usize.size() as usize).ok().unwrap();
+        let k_v: Vec<(Key, usize)> = (0..10_000)
+            .map(|i| (t.insert(Box::new(i)).ok().unwrap(), i.clone()))
+            .collect();
+        for (key, value) in k_v.iter() {
+            assert_eq!(
+                t.get(key.clone(), usize::from_binary).ok().unwrap(),
+                value.clone()
+            );
+        }
     }
     #[test]
     fn recover() {
